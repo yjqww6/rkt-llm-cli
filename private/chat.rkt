@@ -18,7 +18,6 @@
   (λ ([msg : Interactive] streaming options)
     (define history (current-history))
     (cond
-      [(null? msg) (error 'chat "null msg: ~a" msg)]
       [(eq? msg 'redo)
        (match/values
         (split-at-right history 2)
@@ -40,18 +39,18 @@
                              streaming options))
        (current-history (append history (list user resp)))
        resp]
-      [(and (pair? msg) (string? (cdr msg)))
+      [(eq? (car msg) 'result)
+       (define resp (chatter (make-history history (cdr msg))
+                             streaming options))
+       (current-history (append history (cdr msg) (list resp)))
+       resp]
+      [else
        (define prefill (make-assistant (cdr msg)))
        (streaming (cdr msg))
        (define resp (chatter (make-history history (list (car msg) prefill)) streaming options))
        (define new-resp (merge-message prefill resp))
        (current-history (append history (list (car msg) new-resp)))
-       new-resp]
-      [else
-       (define resp (chatter (make-history history msg)
-                             streaming options))
-       (current-history (append history msg (list resp)))
-       resp])))
+       new-resp])))
 
 (define (make-chat-by-template [completer : Completer] [chat-template : ChatTemplate]) : Chatter
   (λ (history streaming options)

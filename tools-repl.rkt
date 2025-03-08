@@ -36,7 +36,7 @@
         (map (λ ([rsp : String] [tc : ToolCall])
                (make-tool rsp (ToolCall-id tc)))
              tool-resps tcs))
-      ((current-chat) tool-msgs)))
+      ((current-chat) (cons 'result tool-msgs))))
   (match (current-history)
     [(list _ ... (struct* Msg ([role "assistant"] [tool-calls tcs])))
      #:when (not (null? tcs))
@@ -61,10 +61,8 @@
   (λ ([s : Interactive]) : Void
     (old-chat
      (match s
-       [(list msgs ...)
-        #:when (andmap Msg? msgs)
-        (map tool->user msgs)]
-       [(? Msg? s) (tool->user s)]
+       [(cons 'result msgs)
+        (cons 'result (map tool->user msgs))]
        [else s]))))
 
 (define (with-nous-tools [repl : (-> Void)])

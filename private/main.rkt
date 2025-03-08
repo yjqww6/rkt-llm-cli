@@ -30,7 +30,7 @@
 (define-type History (Listof Msg))
 
 (define-type Chatter (History (-> String Void) Options -> Msg))
-(define-type Interactive (U String Msg (Pairof Msg String) (Listof Msg) 'redo 'continue))
+(define-type Interactive (U String Msg (Pairof Msg String) (Pairof 'result (Listof Msg)) 'redo 'continue))
 (define-type InteractiveChatter (Interactive (-> String Void) Options -> Msg))
 (define-type Completer (String (-> String Void) Options -> String))
 (define-type ChatTemplate (History -> String))
