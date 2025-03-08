@@ -1,0 +1,78 @@
+#lang racket/base
+(require (for-syntax racket/base)
+         racket/match
+         racket/string
+         racket/system
+         syntax/parse/define
+         json)
+(provide define-tool tools-callback tool->string tools->string tool-name (struct-out tool) shell_exec)
+
+(struct tool (proc desc) #:property prop:procedure (struct-field-index proc))
+
+(begin-for-syntax
+  (define-syntax-class Param #:datum-literals (:)
+    (pattern [Name:id : Type:id
+                      (~alt
+                       (~once (~seq #:desc Desc:string))
+                       (~optional (~seq #:enum Enum:expr))
+                       (~optional (~and (~seq #:def E:expr)
+                                        (~bind [(Def 1) (list #'(λ () E))]
+                                               [(Required 1) '()]))
+                                  #:defaults ([(Def 1) '()]
+                                              [(Required 1) (list #'Name)]))
+                       (~optional (~seq #:items Items:expr)))
+                      ...]
+      #:with Prop
+      #'(hasheq 'type (symbol->string 'Type)
+                'description Desc
+                (~? (~@ 'enum Enum))
+                (~? (~@ 'items Items))))))
+
+(define-syntax-parser define-tool
+  [(_ (Tool:id Param:Param ...) #:desc Desc:expr Body:expr ...+)
+   #'(define Tool
+       (tool
+        (λ (arg)
+          (define Param.Name (hash-ref arg 'Param.Name Param.Def ...)) ...
+          Body ...)
+        (hasheq
+         'type "function"
+         'function
+         (hasheq 'name (symbol->string 'Tool)
+                 'description Desc
+                 'parameters
+                 (hasheq 'type "object"
+                         'properties (hasheq (~@ 'Param.Name Param.Prop) ...)
+                         'required (map symbol->string (list 'Param.Required ... ...)))))))])
+
+(define (tool-name tool)
+  (hash-ref (hash-ref (tool-desc tool) 'function) 'name))
+
+(define (tools-callback tools)
+  (define m
+    (for/hash ([tool (in-list tools)])
+      (define name (hash-ref (hash-ref (tool-desc tool) 'function) 'name))
+      (values name tool)))
+  (λ (call)
+    ((hash-ref m (hash-ref call 'name)) (string->jsexpr (hash-ref call 'arguments)))))
+
+(define (tool->string tool)
+  (jsexpr->string (tool-desc tool)))
+
+(define (tools->string tools)
+  (jsexpr->string (map tool-desc tools)))
+
+(define (system/string cmd)
+  (define o (open-output-string))
+  (parameterize ([current-output-port o]
+                 [current-error-port o])
+    (system cmd)
+    (get-output-string o)))
+
+(define-tool (shell_exec [cmd : string #:desc "command line to be executed"])
+  #:desc (format "execute shell command. system type: ~a" (system-type 'os))
+  (printf "")
+  (display (string-append "\033[31m" cmd "\033[0m\n" "Comfirm[y/n]:"))
+  (if (string=? "y" (read-line))
+      (system/string cmd)
+      #f))
