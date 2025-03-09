@@ -83,6 +83,33 @@
                   (k))))
      (repl-loop))))
 
+(define (use-endpoint #:type [type 'oai-compat] #:host [host "localhost"] #:port [port #f] #:tpl [tpl #f])
+  (cond
+    [(eq? type 'oai-compat)
+     (current-chat
+      (cond
+        [tpl
+         (oai-compat-completion tpl
+                                (make-default-options host (or port 8080) "v1/completions"))]
+        [else
+         (oai-compat-chat
+          (make-default-options host (or port 8080) "v1/chat/completions"))]))
+     (current-complete
+      (oai-compat-complete
+       (make-default-options host (or port 8080) "v1/completions")))]
+    [(eq? type 'ollama)
+     (current-chat
+      (cond
+        [tpl
+         (ollama-completion tpl
+                            (make-default-options host (or port 11434) "api/generate"))]
+        [else
+         (ollama-chat
+          (make-default-options host (or port 11434) "api/chat"))]))
+     (current-complete
+      (ollama-complete
+       (make-default-options host (or port 11434) "api/generate")))]))
+
 (module+ main
   (require expeditor (submod expeditor configure)
            racket/port racket/cmdline racket/runtime-path
@@ -112,32 +139,10 @@
    [("-r" "--require") file "required file" (namespace-require file ns)]
    [("-e" "--expr") expr "expression" (eval (read (open-input-string expr)) ns)])
 
-  (current-chat
-   (cond
-     [(current-tpl)
-      (cond
-        [(current-use-ollama)
-         (ollama-completion
-          (current-tpl)
-          (make-default-options (current-host) (or (current-port) 11434) "api/generate"))]
-        [else
-         (oai-compat-completion
-          (current-tpl)
-          (make-default-options (current-host) (or (current-port) 8080) "v1/completions"))])]
-     [(current-use-ollama)
-      (ollama-chat
-       (make-default-options (current-host) (or (current-port) 11434) "api/chat"))]
-     [else
-      (oai-compat-chat
-       (make-default-options (current-host) (or (current-port) 8080) "v1/chat/completions"))]))
-  (current-complete
-   (cond
-     [(current-use-ollama)
-      (ollama-complete
-       (make-default-options (current-host) (or (current-port) 11434) "api/generate"))]
-     [else
-      (oai-compat-complete
-       (make-default-options (current-host) (or (current-port) 8080) "v1/completions"))]))
+  (use-endpoint #:type (if (current-use-ollama) 'ollama 'oai-compat)
+                #:host (current-host)
+                #:port (current-port)
+                #:tpl (current-tpl))
   
   (define (command-input? in)
     (regexp-match-peek #px"^\\s*," in))
