@@ -14,11 +14,25 @@
 
 (define-type Chat (-> Interactive Void))
 (: make-default-chat (-> InteractiveChatter Options Chat))
-(define ((make-default-chat chatter default-options) s)
-  (chatter s
-           (λ (s) (display s) (flush-output))
-           (merge-Options default-options (current-Options)))
-  (newline))
+(define (make-default-chat chatter default-options)
+  (define new-chatter (with-interactive-preprocessor chatter))
+  (λ (s)
+    (chatter s
+             (λ (s) (display s) (flush-output))
+             (merge-Options default-options (current-Options)))
+    (newline)))
+
+(define current-messages-preprocessor (make-parameter (ann values (-> History History))))
+(define (with-messages-preprocessor [chatter : Chatter]) : Chatter
+  (map-chatter chatter (λ (h) ((current-messages-preprocessor) h))))
+(define (push-message-preprocessor [f : (-> History History)]
+                                   [old : (-> History History) (current-messages-preprocessor)])
+  (λ ([h : History])
+    (old (f h))))
+
+(define current-interactive-preprocessor (make-parameter (ann values (-> Interactive Interactive))))
+(define (with-interactive-preprocessor [chatter : InteractiveChatter]) : InteractiveChatter
+  (map-interactive-chatter chatter (λ (s) ((current-interactive-preprocessor) s))))
 
 (define llama-cpp-chat-default-options
   (make-Options
@@ -41,21 +55,21 @@
    #:endpoint (format "http://~a:~a/~a" host port path)))
 
 (define (oai-compat-chat [default-options : Options llama-cpp-chat-default-options])
-  (make-default-chat (make-interactive-chat oai:chat) default-options))
+  (make-default-chat (make-interactive-chat (with-messages-preprocessor oai:chat)) default-options))
 
 (define (oai-compat-completion
          [tpl : (U String ChatTemplate)]
          [default-options : Options llama-cpp-completion-default-options]) : Chat
   (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
-  (make-default-chat (make-interactive-chat (make-chat-by-template oai:completion chat-tpl))
+  (make-default-chat (make-interactive-chat (with-messages-preprocessor (make-chat-by-template oai:completion chat-tpl)))
                      default-options))
 
 (define (ollama-chat [default-options : Options])
-  (make-default-chat (make-interactive-chat ollama:chat) default-options))
+  (make-default-chat (make-interactive-chat (with-messages-preprocessor ollama:chat)) default-options))
 
 (define (ollama-completion [tpl : (U String ChatTemplate)] [default-options : Options])
   (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
-  (make-default-chat (make-interactive-chat (make-chat-by-template ollama:completion chat-tpl))
+  (make-default-chat (make-interactive-chat (with-messages-preprocessor (make-chat-by-template ollama:completion chat-tpl)))
                      default-options))
 
 (define current-chat (make-parameter (oai-compat-chat)))

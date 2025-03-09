@@ -33,24 +33,24 @@
          (define new-resp (merge-message assist resp))
          (current-history (append past (list new-resp)))
          new-resp])]
-      [(or (string? msg) (Msg? msg))
-       (define user (if (string? msg) (make-user msg) msg))
-       (define resp (chatter (make-history history (list user))
-                             streaming options))
-       (current-history (append history (list user resp)))
-       resp]
-      [(eq? (car msg) 'result)
-       (define resp (chatter (make-history history (cdr msg))
-                             streaming options))
-       (current-history (append history (cdr msg) (list resp)))
-       resp]
-      [else
+      [(interactive-is-user&prefill? msg)
        (define prefill (make-assistant (cdr msg)))
        (streaming (cdr msg))
        (define resp (chatter (make-history history (list (car msg) prefill)) streaming options))
        (define new-resp (merge-message prefill resp))
        (current-history (append history (list (car msg) new-resp)))
-       new-resp])))
+       new-resp]
+      [(interactive-is-user? msg)
+       (define user (if (string? msg) (make-user msg) msg))
+       (define resp (chatter (make-history history (list user))
+                             streaming options))
+       (current-history (append history (list user resp)))
+       resp]
+      [else
+       (define resp (chatter (make-history history (cdr msg))
+                             streaming options))
+       (current-history (append history (cdr msg) (list resp)))
+       resp])))
 
 (define (make-chat-by-template [completer : Completer] [chat-template : ChatTemplate]) : Chatter
   (λ (history streaming options)
@@ -68,3 +68,14 @@
 
 (define (clear)
   (current-history '()))
+
+(define (map-chatter [chatter : Chatter] [proc : (-> History History)])
+  : Chatter
+  (λ (h s o)
+    (chatter (proc h) s o)))
+
+(define (map-interactive-chatter [chatter : InteractiveChatter]
+                                 [proc : (-> Interactive Interactive)])
+  : InteractiveChatter
+  (λ (h s o)
+    (chatter (proc h) s o)))

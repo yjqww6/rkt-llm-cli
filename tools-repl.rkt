@@ -57,18 +57,22 @@
       (struct-copy Msg msg [role (ann "user" Role)])
       msg))
 
-(define (make-tool->user-chat [old-chat : Chat (current-chat)])
-  (λ ([s : Interactive]) : Void
-    (old-chat
-     (match s
-       [(cons 'result msgs)
-        (cons 'result (map tool->user msgs))]
-       [else s]))))
+(define (map-system [f : (-> (Option String) (Option String))] [h : History]) : History
+  (: s (Option String))
+  (define-values (s r)
+    (match h
+      [(cons (struct* Msg ([role "system"] [content content])) r) (values content r)]
+      [_ (values #f h)]))
+  (cond
+    [(f s) => (λ (sys) (cons (make-system sys) r))]
+    [else r]))
 
 (define (with-nous-tools [repl : (-> Void)])
   (define old-callback (current-tool-callback))
-  (parameterize ([current-system (make-nous-system-template (current-tools) (current-system))]
-                 [current-tool-callback (λ ([j : HashTableTop])
+  (define tools (current-tools))
+  (define (system-rewrite [s : (Option String)]) : (Option String)
+    (make-nous-system-template tools s))
+  (parameterize ([current-tool-callback (λ ([j : HashTableTop])
                                           (define r (old-callback j))
                                           (cond
                                             [(not r) #f]
@@ -76,5 +80,7 @@
                                              (make-nous-response r)]))]
                  [current-tool-parser parse-nous-toolcall]
                  [current-tools '()]
-                 [current-chat (make-tool->user-chat)])
+                 [current-messages-preprocessor (push-message-preprocessor
+                                                 (λ ([s : History]) (map tool->user s))
+                                                 (λ ([s : History]) (map-system system-rewrite s)))])
     (repl)))

@@ -132,3 +132,28 @@
                          (abort-current-continuation break-prompt-tag cc)))
                       (on-abort))])
     (proc)))
+
+(: interactive-is-user? (-> Interactive Boolean : (U Msg String (Pairof Msg String))))
+(define (interactive-is-user? s)
+  (cond
+    [(or (Msg? s) (string? s)) #t]
+    [(and (pair? s) (Msg? (car s))) #t]
+    [else #f]))
+
+(: interactive-is-user&prefill? (-> Interactive Boolean : (Pairof Msg String)))
+(define (interactive-is-user&prefill? s)
+  (cond
+    [(and (pair? s) (Msg? (car s))) #t]
+    [else #f]))
+
+(: interactive-is-tool? (-> Interactive Boolean : (Pairof 'result (Listof Msg))))
+(define (interactive-is-tool? s)
+  (cond
+    [(and (pair? s) (eq? 'result (car s))) #t]
+    [else #f]))
+
+(: interactive-is-command? (-> Interactive Boolean : (U 'redo 'continue)))
+(define (interactive-is-command? s)
+  (cond
+    [(or (eq? s 'redo) (eq? s 'continue)) #t]
+    [else #f]))
