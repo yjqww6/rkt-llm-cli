@@ -116,8 +116,7 @@
   [context-window : (Option Exact-Positive-Integer) #f merge-right])
 
 (define current-verbose (make-parameter (ann #f Boolean)))
-
-
+(define current-network-trace (make-parameter (ann void (-> (U 'send 'recv) (U Bytes String) Void))))
 
 (define break-prompt-tag : (Prompt-Tagof Void (-> (-> Nothing) Void))
   (make-continuation-prompt-tag))

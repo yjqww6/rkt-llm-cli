@@ -2,6 +2,7 @@
 (require "main.rkt"
          racket/match
          racket/string
+         racket/port
          typed/net/base64
          typed/net/url
          typed/json)
@@ -67,9 +68,9 @@
     (error 'parse-content-type-stream "no content-type")))
 
 (define (handle-json-body [port : Input-Port] [streaming : (String -> Void)]) : Msg
-  (define j (read-json port))
-  (when (eof-object? j)
-    (error 'handle-json-body "unexpected EOF"))
+  (define s (port->bytes port))
+  ((current-network-trace) 'recv s)
+  (define j (bytes->jsexpr s))
   (match (json-ref j 'choices 0 'message)
     [(hash* ['content content #:default ""]
             ['tool_calls (? list? tool-calls) #:default '()])
@@ -92,6 +93,8 @@
 (define (on-event-stream [port : Input-Port] [handler : (-> JSExpr Void)])
   (let loop : Void ()
     (define l (read-line port 'any))
+    (unless (eof-object? l)
+      ((current-network-trace) 'recv l))
     (cond
       [(eof-object? l) (void)]
       [(not (non-empty-string? l)) (loop)]
@@ -143,6 +146,7 @@
 
 (define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])
   (define data (build-chat-body msgs opt))
+  ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
                        #:method "POST"
@@ -163,6 +167,7 @@
 
 (define (completion [prompt : String] [streaming : (String -> Void)] [opt : Options])
   (define data (build-completion-body prompt opt))
+  ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
                        #:method "POST"
@@ -179,9 +184,9 @@
   (define all-text (open-output-string))
   (cond
     [(not streaming?)
-     (define j (read-json body))
-     (when (eof-object? j)
-       (error 'completion "EOF"))
+     (define s (port->bytes body))
+     ((current-network-trace) 'recv s)
+     (define j (bytes->jsexpr s))
      (handle j)]
     [else
      (call/interrupt

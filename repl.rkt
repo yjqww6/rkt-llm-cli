@@ -83,20 +83,21 @@
                   (k))))
      (repl-loop))))
 
-(define (use-endpoint #:type [type 'oai-compat] #:host [host "localhost"] #:port [port #f] #:tpl [tpl #f])
+(define (use-endpoint #:type [type 'oai-compat] #:host [host "localhost"] #:port [port #f]
+                      #:tpl [tpl #f] #:prefix [prefix "v1/"])
   (cond
     [(eq? type 'oai-compat)
      (current-chat
       (cond
         [tpl
          (oai-compat-completion tpl
-                                (make-default-options host (or port 8080) "v1/completions"))]
+                                (make-default-options host (or port 8080) (string-append prefix "completions")))]
         [else
          (oai-compat-chat
-          (make-default-options host (or port 8080) "v1/chat/completions"))]))
+          (make-default-options host (or port 8080) (string-append prefix "chat/completions")))]))
      (current-complete
       (oai-compat-complete
-       (make-default-options host (or port 8080) "v1/completions")))]
+       (make-default-options host (or port 8080) (string-append prefix "completions"))))]
     [(eq? type 'ollama)
      (current-chat
       (cond
@@ -125,6 +126,7 @@
   (define current-host (make-parameter "localhost"))
   (define current-port (make-parameter #f))
   (define current-tpl (make-parameter #f))
+  (define current-path-prefix (make-parameter "v1/"))
   (define current-use-ollama (make-parameter #f))
   (command-line
    #:program "rkt-llm-cli"
@@ -133,6 +135,7 @@
    [("--host") h "host" (current-host h)]
    [("--port") p "port" (current-port (string->number p))]
    [("--tpl") p "chat template" (current-tpl p)]
+   [("--prefix") p "path prefix, default to v1/" (current-path-prefix p)]
    [("--ollama") "use ollama" (current-use-ollama #t)]
    [("--model") m "default model" (current-model m)]
    #:multi
@@ -142,7 +145,8 @@
   (use-endpoint #:type (if (current-use-ollama) 'ollama 'oai-compat)
                 #:host (current-host)
                 #:port (current-port)
-                #:tpl (current-tpl))
+                #:tpl (current-tpl)
+                #:prefix (current-path-prefix))
   
   (define (command-input? in)
     (regexp-match-peek #px"^\\s*," in))

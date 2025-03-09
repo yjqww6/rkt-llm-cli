@@ -161,3 +161,11 @@
                 (struct-copy Options o [grammar (format "root ::= ~v .*" (cdr h))]))
         (values h o)))
   (current-interactive-hooks (cons hook (current-interactive-hooks))))
+
+(define (trace-network! [output : Output-Port (current-output-port)])
+  (current-network-trace
+   (lambda (type data)
+     (fprintf output "~a: ~a~%" type data))))
+
+(define (untrace-network!)
+  (current-network-trace void))

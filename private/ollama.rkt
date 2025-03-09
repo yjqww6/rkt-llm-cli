@@ -53,6 +53,7 @@
 
 (define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])
   (define data (build-chat-body msgs opt))
+  ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
                        #:method "POST"
@@ -69,6 +70,7 @@
        (cond
          [(eof-object? l) (void)]
          [else
+          ((current-network-trace) 'recv l)
           (define j (string->jsexpr l))
           (match j
             [(hash* ['message (hash* ['tool_calls (? list? tool-calls)])])
@@ -99,6 +101,7 @@
 
 (define (completion [prompt : String] [streaming : (String -> Void)] [opt : Options])
   (define data (build-completion-body prompt opt))
+  ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
                        #:method "POST"
@@ -114,6 +117,7 @@
        (cond
          [(eof-object? l) (void)]
          [else
+          ((current-network-trace) 'recv l)
           (define j (string->jsexpr l))
           (match j
             [(hash* ['response (? string? content)])
