@@ -22,17 +22,18 @@
              (merge-Options default-options (current-Options)))
     (newline)))
 
-(define current-messages-preprocessor (make-parameter (ann values (-> History History))))
+(define current-messages-preprocessors (make-parameter (ann '() (Listof (-> History History)))))
 (define (with-messages-preprocessor [chatter : Chatter]) : Chatter
-  (map-chatter chatter (λ (h) ((current-messages-preprocessor) h))))
-(define (push-message-preprocessor [f : (-> History History)])
-  (define old (current-messages-preprocessor))
-  (λ ([h : History])
-    (old (f h))))
+  (map-chatter chatter
+               (λ (h) (((inst foldl (-> History History) (-> History History))
+                        compose1 values (current-messages-preprocessors)) h))))
 
-(define current-interactive-preprocessor (make-parameter (ann values (-> Interactive Interactive))))
+(define current-interactive-preprocessors (make-parameter (ann '() (Listof (-> Interactive Interactive)))))
 (define (with-interactive-preprocessor [chatter : InteractiveChatter]) : InteractiveChatter
-  (map-interactive-chatter chatter (λ (s) ((current-interactive-preprocessor) s))))
+  (map-interactive-chatter
+   chatter
+   (λ (s) (((inst foldl (-> Interactive Interactive) (-> Interactive Interactive))
+            compose1 values (current-interactive-preprocessors)) s))))
 
 (define llama-cpp-chat-default-options
   (make-Options

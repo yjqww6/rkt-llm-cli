@@ -80,8 +80,9 @@
                                              (make-nous-response r)]))]
                  [current-tool-parser parse-nous-toolcall]
                  [current-tools '()]
-                 [current-messages-preprocessor (push-message-preprocessor
-                                                 (compose1
-                                                  (λ ([s : History]) (map tool->user s))
-                                                  (λ ([s : History]) (map-system system-rewrite s))))])
+                 [current-messages-preprocessors (cons
+                                                  (compose1
+                                                   (λ ([s : History]) (map tool->user s))
+                                                   (λ ([s : History]) (map-system system-rewrite s)))
+                                                  (current-messages-preprocessors))])
     (repl)))
