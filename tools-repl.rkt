@@ -81,6 +81,7 @@
                  [current-tool-parser parse-nous-toolcall]
                  [current-tools '()]
                  [current-messages-preprocessor (push-message-preprocessor
-                                                 (λ ([s : History]) (map tool->user s))
-                                                 (λ ([s : History]) (map-system system-rewrite s)))])
+                                                 (compose1
+                                                  (λ ([s : History]) (map tool->user s))
+                                                  (λ ([s : History]) (map-system system-rewrite s))))])
     (repl)))

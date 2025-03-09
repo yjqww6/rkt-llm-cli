@@ -25,8 +25,8 @@
 (define current-messages-preprocessor (make-parameter (ann values (-> History History))))
 (define (with-messages-preprocessor [chatter : Chatter]) : Chatter
   (map-chatter chatter (λ (h) ((current-messages-preprocessor) h))))
-(define (push-message-preprocessor [f : (-> History History)]
-                                   [old : (-> History History) (current-messages-preprocessor)])
+(define (push-message-preprocessor [f : (-> History History)])
+  (define old (current-messages-preprocessor))
   (λ ([h : History])
     (old (f h))))
 
