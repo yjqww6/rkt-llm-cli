@@ -15,11 +15,11 @@
 (define-type Chat (-> Interactive Void))
 (: make-default-chat (-> InteractiveChatter Options Chat))
 (define (make-default-chat chatter default-options)
-  (define new-chatter (with-interactive-preprocessor chatter))
+  (define new-chatter (with-interactive-hooks chatter))
   (λ (s)
-    (chatter s
-             (λ (s) (display s) (flush-output))
-             (merge-Options default-options (current-Options)))
+    (new-chatter s
+                 (λ (s) (display s) (flush-output))
+                 (merge-Options default-options (current-Options)))
     (newline)))
 
 (define current-messages-preprocessors (make-parameter (ann '() (Listof (-> History History)))))
@@ -28,12 +28,19 @@
                (λ (h) (((inst foldl (-> History History) (-> History History))
                         compose1 values (current-messages-preprocessors)) h))))
 
-(define current-interactive-preprocessors (make-parameter (ann '() (Listof (-> Interactive Interactive)))))
-(define (with-interactive-preprocessor [chatter : InteractiveChatter]) : InteractiveChatter
-  (map-interactive-chatter
-   chatter
-   (λ (s) (((inst foldl (-> Interactive Interactive) (-> Interactive Interactive))
-            compose1 values (current-interactive-preprocessors)) s))))
+(define current-interactive-hooks (make-parameter (ann '() (Listof InteractiveHook))))
+(define (with-interactive-hooks [chatter : InteractiveChatter]) : InteractiveChatter
+  (λ (h s o)
+    (define-values (new-h new-o)
+      (let loop : (Values Interactive Options)
+        ([hooks (current-interactive-hooks)] [h h] [o o])
+        (cond
+          [(null? hooks) (values h o)]
+          [else
+           (define-values (new-h new-o)
+             ((car hooks) h o))
+           (loop (cdr hooks) new-h new-o)])))
+    (chatter new-h s new-o)))
 
 (define llama-cpp-chat-default-options
   (make-Options
@@ -145,3 +152,12 @@
 
 (define current-repl-loop (make-parameter (ann (λ () (error 'repl-loop)) (-> Any))))
 (define (repl-loop) ((current-repl-loop)))
+
+(define (use-prefix-by-grammar!)
+  (: hook InteractiveHook)
+  (define (hook h o)
+    (if (interactive-is-user&prefill? h)
+        (values (car h)
+                (struct-copy Options o [grammar (format "root ::= ~v .*" (cdr h))]))
+        (values h o)))
+  (current-interactive-hooks (cons hook (current-interactive-hooks))))

@@ -34,6 +34,7 @@
 (define-type InteractiveChatter (Interactive (-> String Void) Options -> Msg))
 (define-type Completer (String (-> String Void) Options -> String))
 (define-type ChatTemplate (History -> String))
+(define-type InteractiveHook (-> Interactive Options (Values Interactive Options)))
 
 (: hash-and (All (K V) (->* ((Immutable-HashTable K V)) #:rest-star (K (Option V)) (Immutable-HashTable K V))))
 (define (hash-and h . kv*)

@@ -73,9 +73,3 @@
   : Chatter
   (λ (h s o)
     (chatter (proc h) s o)))
-
-(define (map-interactive-chatter [chatter : InteractiveChatter]
-                                 [proc : (-> Interactive Interactive)])
-  : InteractiveChatter
-  (λ (h s o)
-    (chatter (proc h) s o)))
