@@ -12,15 +12,10 @@
          (all-from-out "private/main.rkt")
          (all-from-out "private/chat.rkt"))
 
-(define-type Chat (-> Interactive Void))
-(: make-default-chat (-> InteractiveChatter Options Chat))
-(define (make-default-chat chatter default-options)
-  (define new-chatter (with-interactive-hooks chatter))
-  (λ (s)
-    (new-chatter s
-                 (λ (s) (display s) (flush-output))
-                 (merge-Options default-options (current-Options)))
-    (newline)))
+(define current-chatter (make-parameter (ann (λ (h s o) (error 'chatter "no endpoint")) InteractiveChatter)))
+(define current-completer (make-parameter (ann (λ (h s o) (error 'completer "no endpoint")) Completer)))
+(define default-chat-options (make-parameter (make-Options)))
+(define default-complete-options (make-parameter (make-Options)))
 
 (define current-messages-preprocessors (make-parameter (ann '() (Listof (-> History History)))))
 (define (with-messages-preprocessor [chatter : Chatter]) : Chatter
@@ -42,45 +37,42 @@
            (loop (cdr hooks) new-h new-o)])))
     (chatter new-h s new-o)))
 
-(define llama-cpp-chat-default-options
-  (make-Options
-   #:endpoint "http://localhost:8080/v1/chat/completions"))
+(define oai-compat-chat
+  (make-interactive-chat (with-messages-preprocessor oai:chat)))
 
-(define llama-cpp-completion-default-options
-  (make-Options
-   #:endpoint "http://localhost:8080/v1/completions"))
+(define (oai-compat-completion
+         [tpl : (U String ChatTemplate)]) : InteractiveChatter
+  (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
+  (make-interactive-chat (with-messages-preprocessor (make-chat-by-template oai:completion chat-tpl))))
 
-(define lmstudio-chat-default-options
-  (make-Options
-   #:endpoint "http://localhost:1234/v1/chat/completions"))
+(define ollama-chat
+  (make-interactive-chat (with-messages-preprocessor ollama:chat)))
 
-(define lmstudio-completion-default-options
-  (make-Options
-   #:endpoint "http://localhost:1234/v1/completions"))
+(define (ollama-completion [tpl : (U String ChatTemplate)])
+  (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
+  (make-interactive-chat (with-messages-preprocessor (make-chat-by-template ollama:completion chat-tpl))))
+
+
+(define-type Chat (-> Interactive Void))
+(define default-chat : Chat
+  (λ (s)
+    (define new-chatter (with-interactive-hooks (current-chatter)))
+    (new-chatter s
+                 (λ (s) (display s) (flush-output))
+                 (merge-Options (default-chat-options) (current-Options)))
+    (newline)))
+
+(define-type Complete (-> String Void))
+(define default-complete : Complete
+  (λ (s)
+    ((current-completer) s
+                         (λ (s) (display s) (flush-output))
+                         (merge-Options (default-chat-options) (current-Options)))
+    (newline)))
 
 (define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String])
   (make-Options
    #:endpoint (format "http://~a:~a/~a" host port path)))
-
-(define (oai-compat-chat [default-options : Options llama-cpp-chat-default-options])
-  (make-default-chat (make-interactive-chat (with-messages-preprocessor oai:chat)) default-options))
-
-(define (oai-compat-completion
-         [tpl : (U String ChatTemplate)]
-         [default-options : Options llama-cpp-completion-default-options]) : Chat
-  (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
-  (make-default-chat (make-interactive-chat (with-messages-preprocessor (make-chat-by-template oai:completion chat-tpl)))
-                     default-options))
-
-(define (ollama-chat [default-options : Options])
-  (make-default-chat (make-interactive-chat (with-messages-preprocessor ollama:chat)) default-options))
-
-(define (ollama-completion [tpl : (U String ChatTemplate)] [default-options : Options])
-  (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
-  (make-default-chat (make-interactive-chat (with-messages-preprocessor (make-chat-by-template ollama:completion chat-tpl)))
-                     default-options))
-
-(define current-chat (make-parameter (oai-compat-chat)))
 
 (define #:forall (a) (call-with-cust (thunk : (-> a)))
   (define cust (make-custodian))
@@ -90,29 +82,43 @@
                     (thunk)))
                 (λ () (custodian-shutdown-all cust))))
 
-(: chat Chat)
-(define (chat s)
+(define (oai-compat-complete
+         [s : String])
+  (oai:completion s (λ (s) (display s) (flush-output))
+                  (merge-Options (default-complete-options) (current-Options)))
+  (void))
+
+(define (ollama-complete [s : String])
+  (ollama:completion s (λ (s) (display s) (flush-output))
+                     (merge-Options (default-complete-options) (current-Options)))
+  (void))
+
+(define current-chat (make-parameter default-chat))
+(define current-complete (make-parameter default-complete))
+
+(define (chat [s : Interactive])
   (call-with-cust
    (λ ()
      ((current-chat) s))))
 
-(define ((oai-compat-complete [default-options : Options llama-cpp-completion-default-options])
-         [s : String])
-  (oai:completion s (λ (s) (display s) (flush-output))
-                  (merge-Options default-options (current-Options)))
-  (void))
-
-(define ((ollama-complete [default-options : Options]) [s : String])
-  (ollama:completion s (λ (s) (display s) (flush-output))
-                     (merge-Options default-options (current-Options)))
-  (void))
-
-(define current-complete (make-parameter (ann (λ (s) (error 'current-complete))
-                                              (-> String Void))))
 (define (complete [s : String])
   (call-with-cust
    (λ ()
      ((current-complete) s))))
+
+(define (use-endpoint #:type [type 'oai-compat] #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
+                      #:tpl [tpl : (Option String) #f] #:prefix [prefix : String "v1/"])
+  (cond
+    [(eq? type 'oai-compat)
+     (default-complete-options (make-default-options host (or port 8080) (string-append prefix "completions")))
+     (default-chat-options (make-default-options host (or port 8080) (string-append prefix "chat/completions")))
+     (current-chatter (if tpl (oai-compat-completion tpl) oai-compat-chat))
+     (current-complete oai-compat-complete)]
+    [(eq? type 'ollama)
+     (default-complete-options (make-default-options host (or port 11434) "api/generate"))
+     (default-chat-options (make-default-options host (or port 11434) "api/chat"))
+     (current-chatter (if tpl (ollama-completion tpl) ollama-chat))
+     (current-complete ollama-complete)]))
 
 (define current-paste-text (make-parameter (ann #f (Option String))))
 (define current-paste-image (make-parameter (ann #f (Option Bytes))))

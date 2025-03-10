@@ -84,34 +84,6 @@
                   (k))))
      (repl-loop))))
 
-(define (use-endpoint #:type [type 'oai-compat] #:host [host "localhost"] #:port [port #f]
-                      #:tpl [tpl #f] #:prefix [prefix "v1/"])
-  (cond
-    [(eq? type 'oai-compat)
-     (current-chat
-      (cond
-        [tpl
-         (oai-compat-completion tpl
-                                (make-default-options host (or port 8080) (string-append prefix "completions")))]
-        [else
-         (oai-compat-chat
-          (make-default-options host (or port 8080) (string-append prefix "chat/completions")))]))
-     (current-complete
-      (oai-compat-complete
-       (make-default-options host (or port 8080) (string-append prefix "completions"))))]
-    [(eq? type 'ollama)
-     (current-chat
-      (cond
-        [tpl
-         (ollama-completion tpl
-                            (make-default-options host (or port 11434) "api/generate"))]
-        [else
-         (ollama-chat
-          (make-default-options host (or port 11434) "api/chat"))]))
-     (current-complete
-      (ollama-complete
-       (make-default-options host (or port 11434) "api/generate")))]))
-
 (module+ main
   (require expeditor (submod expeditor configure)
            racket/port racket/cmdline racket/runtime-path
