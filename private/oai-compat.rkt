@@ -189,10 +189,6 @@
      (define j (bytes->jsexpr s))
      (handle j)]
     [else
-     (call/interrupt
-      (λ ()
-        (on-event-stream
-         body handle))
-      void)])
+     (on-event-stream body handle)])
   (close-input-port body)
   (get-output-string all-text))
