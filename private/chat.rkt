@@ -20,10 +20,10 @@
     (cond
       [(eq? msg 'redo)
        (match/values
-        (split-at-right history 2)
-        [(history (list user assist))
-         (define resp (chatter (make-history history (list user)) streaming options))
-         (current-history (append history (list user resp)))
+        (split-at-right history 1)
+        [(history (list (struct* Msg ([role "assistant"]))))
+         (define resp (chatter history streaming options))
+         (current-history (append history (list resp)))
          resp])]
       [(eq? msg 'continue)
        (match/values
@@ -57,14 +57,8 @@
     (define output (completer (chat-template history) streaming options))
     (make-assistant output)))
 
-(define (undo-history [history : History]) : History
-  (let loop ([history (reverse history)])
-    (match history
-      [(cons (struct* Msg ([role "user"])) rest) (reverse rest)]
-      [(cons _ rest) (loop rest)])))
-
 (define (undo)
-  (current-history (undo-history (current-history))))
+  (current-history (drop-right (current-history) 2)))
 
 (define (clear)
   (current-history '()))
