@@ -71,7 +71,8 @@
   (match-define (hash 'content content #:open) (last (current-history)))
   content)
 
-(define (use-tools #:auto [auto? #t] #:manual [manual #f] . tools)
+(define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
+  (define tools (flatten ts))
   (parameterize ([current-tools (map tool-desc tools)]
                  [current-tool-callback (tools-callback tools)]
                  [current-repl-prompt tool-repl-prompt])
@@ -139,7 +140,8 @@
    [("--ollama") "use ollama" (current-use-ollama #t)]
    [("--model") m "default model" (current-model m)]
    #:multi
-   [("-r" "--require") file "required file" (namespace-require file ns)]
+   [("-t" "--require") file "(require (file \"<file>\"))" (namespace-require (list 'file file) ns)]
+   [("-l" "--lib") file "(require (lib \"<path>\"))" (namespace-require (list 'lib file) ns)]
    [("-e" "--expr") expr "expression" (eval (read (open-input-string expr)) ns)])
 
   (use-endpoint #:type (if (current-use-ollama) 'ollama 'oai-compat)
