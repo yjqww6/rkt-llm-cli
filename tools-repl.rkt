@@ -27,7 +27,8 @@
     (let/ec k : Void
       (define tool-resps : (Listof String)
         (for/list ([arg (in-list tool-args)])
-          (printf "Executing : ~a~%" arg)
+          (when (terminal-port? (current-output-port))
+            (printf "\033[34mExecuting ~a: ~a\033[0m~%" (hash-ref arg 'name) (hash-ref arg 'arguments)))
           (define r
             ((current-tool-callback) arg))
           (unless r (k (void)))
