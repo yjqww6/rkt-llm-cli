@@ -6,6 +6,7 @@
          "private/chat-template.rkt"
          racket/match
          racket/list
+         racket/port
          typed/json
          typed/net/url)
 (provide (all-defined-out)
@@ -175,3 +176,18 @@
 
 (define (untrace-network!)
   (current-network-trace void))
+
+(define (warmup)
+  (parameterize ([current-output-prefix (current-output-prefix)]
+                 [current-paste-text (current-paste-text)]
+                 [current-paste-image (current-paste-image)]
+                 [current-max-tokens 0]
+                 [current-history (current-history)]
+                 [current-output-port (open-output-nowhere)])
+    (repl-chat "")))
+
+(define (redo)
+  (repl-chat 'redo))
+
+(define (last-response)
+  (Msg-content (last (current-history))))

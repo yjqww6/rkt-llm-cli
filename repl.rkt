@@ -55,22 +55,6 @@
     [pasted (current-paste-image pasted)]
     [else (void)]))
 
-(define (warmup)
-  (parameterize ([current-output-prefix (current-output-prefix)]
-                 [current-paste-text (current-paste-text)]
-                 [current-paste-image (current-paste-image)]
-                 [current-max-tokens 0]
-                 [current-history (current-history)]
-                 [current-output-port (open-output-nowhere)])
-    (repl-chat "")))
-
-(define (redo)
-  (repl-chat 'redo))
-
-(define (last-response)
-  (match-define (hash 'content content #:open) (last (current-history)))
-  content)
-
 (define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
   (define tools (flatten ts))
   (parameterize ([current-tools (map tool-desc tools)]
