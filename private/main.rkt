@@ -72,6 +72,10 @@
 (define (merge-right a b)
   (or b a))
 
+(: merge-right/null (All (a) (U Null a) (U Null a) -> (U Null a)))
+(define (merge-right/null a b)
+  (if (not (null? b)) b a))
+
 (define-syntax-parser define-option
   [(_ Name:id [Id:id (~literal :) Type Def:expr merger:id] ...)
    #:with make-Name (format-id #'Name "make-~a" #'Name)
@@ -100,7 +104,7 @@
 (define-option Options
   [endpoint : (Option String) #f merge-right]
   [headers : (Listof String) '() append]
-  [stream : (Option (Boxof Boolean)) #f merge-right]
+  [stream : (U Null Boolean) '() merge-right/null]
   [tools : (Listof JSExpr) '() append]
   [max-tokens : (Option Integer) #f merge-right]
   [stop : (Listof String) '() append]

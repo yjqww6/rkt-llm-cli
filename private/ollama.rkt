@@ -38,7 +38,7 @@
                 'num_predict (Options-max-tokens options)
                 'stop (null->false (Options-stop options))))
   (define s (Options-stream options))
-  (define really-stream? (if s (unbox s) #t))
+  (define really-stream? (if (null? s) #t s))
   (hash-build
    'options h
    'stream really-stream?

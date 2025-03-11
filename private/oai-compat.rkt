@@ -36,7 +36,7 @@
 
 (define (build-body-common [options : Options])
   (define s (Options-stream options))
-  (define really-stream? (if s (unbox s) #t))
+  (define really-stream? (if (null? s) #t s))
   (hash-build
    'temperature (Options-temperature options)
    'top_k (Options-top-k options)
