@@ -25,12 +25,13 @@
    (cond
      [(null? images) content]
      [else
-      (cons (hasheq 'type "text" 'text content)
-            (map (λ ([img : Bytes])
-                   (define d (string-append "data:image/jpeg;base64,"
-                                            (bytes->string/latin-1 (base64-encode img))))
-                   (hasheq 'type "image_url" 'image_url (hasheq 'url d)))
-                 images))])))
+      (append
+       (map (λ ([img : Bytes])
+              (define d (string-append "data:image/jpeg;base64,"
+                                       (bytes->string/latin-1 (base64-encode img))))
+              (hasheq 'type "image_url" 'image_url (hasheq 'url d)))
+            images)
+       (list (hasheq 'type "text" 'text content)))])))
 
 (define (build-body-common [options : Options])
   (define s (Options-stream options))
