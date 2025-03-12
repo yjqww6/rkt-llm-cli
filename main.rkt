@@ -6,9 +6,7 @@
          "private/chat-template.rkt"
          racket/match
          racket/list
-         racket/port
-         typed/json
-         typed/net/url)
+         racket/port)
 (provide (all-defined-out)
          (all-from-out "private/main.rkt")
          (all-from-out "private/chat.rkt"))

@@ -2,8 +2,7 @@
 (require "main.rkt"
          "tool-template.rkt"
          racket/match
-         racket/list
-         typed/json)
+         racket/list)
 (provide current-tool-callback execute tool-repl-prompt make-auto-execute-chat
          with-nous-tools)
 

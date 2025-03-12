@@ -1,10 +1,8 @@
 #lang typed/racket/base/shallow
 (require "main.rkt"
+         "types.rkt"
          racket/match
-         racket/string
-         typed/json
-         typed/net/base64
-         typed/net/url)
+         racket/string)
 (provide chat completion)
 
 (define (build-ollama-message [message : Msg]) : (Immutable-HashTable Symbol JSExpr)

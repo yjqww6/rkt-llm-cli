@@ -1,6 +1,6 @@
 #lang typed/racket/base/shallow
-(require racket/match
-         typed/json
+(require "types.rkt"
+         racket/match
          syntax/parse/define
          (for-syntax racket/base
                      racket/syntax))

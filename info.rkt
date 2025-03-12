@@ -1,6 +1,6 @@
 #lang info
 (define collection "rkt-llm-cli")
-(define deps '("base" "typed-racket-lib" "typed-racket-more" "expeditor-lib"))
+(define deps '("base" "typed-racket-lib" "expeditor-lib"))
 (define build-deps '())
 (define pkg-desc "Description Here")
 (define version "0.0")

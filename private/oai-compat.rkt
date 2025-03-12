@@ -1,11 +1,9 @@
 #lang typed/racket/base/shallow
 (require "main.rkt"
+         "types.rkt"
          racket/match
          racket/string
-         racket/port
-         typed/net/base64
-         typed/net/url
-         typed/json)
+         racket/port)
 (provide chat completion)
 
 (define (build-oai-compat-message [message : Msg]) : (Immutable-HashTable Symbol JSExpr)

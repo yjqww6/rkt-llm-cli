@@ -1,8 +1,8 @@
 #lang typed/racket/base/shallow
-(require typed/json
-         racket/string
+(require racket/string
          racket/match
-         "private/main.rkt")
+         "private/main.rkt"
+         "private/types.rkt")
 (provide (all-defined-out))
 
 (define (make-nous-system-template [tools : (Listof JSExpr)] [system : (Option String)])
