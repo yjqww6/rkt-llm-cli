@@ -39,6 +39,24 @@
     (write-string prefill s))
   (get-output-string s))
 
+(define (gemma [messages : History]) : String
+  (define-values (sys his prefill) (split-messages messages #f))
+  (define s (open-output-string))
+  (for ([msg (in-list his)]
+        [i (in-naturals)])
+    (match-define (struct* Msg ([role role] [content content])) msg)
+    (define mapped-role (if (string=? role "assistant") "model" role))
+    (write-string (format "<start_of_turn>~a\n" mapped-role) s)
+    (when (and sys (= i 0))
+      (write-string sys s)
+      (write-string "\n\n" s))
+    (write-string content s)
+    (write-string "<end_of_turn>\n" s))
+  (write-string "<start_of_turn>model\n" s)
+  (when prefill
+    (write-string prefill s))
+  (get-output-string s))
+
 (define (skip-cot-tokens [msgs : History] #:sep [sep : String "</think>"]) : History
   (define end (length msgs))
   (for/list ([m (in-list msgs)]
@@ -56,7 +74,8 @@
 (define (chat-template [name : String] #:skip-cot? [skip-cot? : Boolean #t]) : ChatTemplate
   (define tpl
     (match name
-      ["chatml" chatml]))
+      ["chatml" chatml]
+      ["gemma" gemma]))
   (cond
     [(not skip-cot?) tpl]
     [else
