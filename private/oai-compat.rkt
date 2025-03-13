@@ -37,7 +37,6 @@
   (define s (Options-stream options))
   (define really-stream? (if (null? s) #t s))
   (hash-build
-   'cache_prompt #t
    'temperature (Options-temperature options)
    'top_k (Options-top-k options)
    'top_p (Options-top-p options)
