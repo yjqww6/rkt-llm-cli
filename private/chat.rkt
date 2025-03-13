@@ -67,3 +67,15 @@
   : Chatter
   (λ (h s o)
     (chatter (proc h) s o)))
+
+(define (save-history [file : Path-String])
+  (call-with-output-file*
+   file
+   (λ ([p : Output-Port])
+     (write (current-history) p))
+   #:exists 'replace))
+
+(define (load-history [file : Path-String])
+  (call-with-input-file* file
+    (λ ([p : Input-Port])
+      (current-history (cast (read p) History)))))
