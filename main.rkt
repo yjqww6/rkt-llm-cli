@@ -141,13 +141,19 @@
 (define current-repl-prompt (make-parameter default-repl-prompt))
 
 (define (take-last-prompt)
+  (define (extract-paste-text [content : String])
+    (match (regexp-match #px"^```\n(.*)\n```(.*)$" content)
+      [(list _ paste _) paste]
+      [_ #f]))
   (match/values
    (split-at-right (current-history) 2)
-   [(history (list (struct* Msg ([role "user"] [content content])) assistant))
-    (match (regexp-match #px"^```\n(.*)\n```(.*)$" content)
-      [(list _ paste _)
-       (current-paste-text paste)
-       (current-history history)])]))
+   [(history (list (struct* Msg ([role "user"] [content (app extract-paste-text paste)] [images images])) assistant))
+    #:when (or paste (not (null? images)))
+    (when paste
+      (current-paste-text paste))
+    (unless (null? images)
+      (current-paste-image (car images)))
+    (current-history history)]))
 
 (define current-repl-loop (make-parameter (ann (λ () (error 'repl-loop)) (-> Any))))
 (define (repl-loop) ((current-repl-loop)))
