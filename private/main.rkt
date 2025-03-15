@@ -27,6 +27,9 @@
 (define (make-tool [resp : String] [id : (Option String)])
   (Msg "tool" resp '() '() id))
 
+(define (make-msg [role : Role] [content : String])
+  (Msg role content '() '() #f))
+
 (define-type History (Listof Msg))
 
 (define-type Chatter (History (-> String Void) Options -> Msg))
