@@ -108,19 +108,22 @@
   (unless (string-contains? (bytes->string/latin-1 status) "200")
     (error 'send "status: ~a" status))
   (define output-content (open-output-string))
-  (let loop ()
-    (define l (read-line body 'any))
-    (cond
-      [(eof-object? l) (void)]
-      [else
-       ((current-network-trace) 'recv l)
-       (define j (string->jsexpr l))
-       (match j
-         [(hash* ['response (? string? content)])
-          (write-string content output-content)
-          (streaming content)]
-         [(hash* ['error err])
-          (error 'chat "~a" err)])
-       (loop)]))
+  (call/interrupt
+   (λ ()
+     (let loop ()
+       (define l (read-line body 'any))
+       (cond
+         [(eof-object? l) (void)]
+         [else
+          ((current-network-trace) 'recv l)
+          (define j (string->jsexpr l))
+          (match j
+            [(hash* ['response (? string? content)])
+             (write-string content output-content)
+             (streaming content)]
+            [(hash* ['error err])
+             (error 'chat "~a" err)])
+          (loop)])))
+   void)
   (close-input-port body)
   (get-output-string output-content))

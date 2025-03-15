@@ -137,14 +137,7 @@
         (parameterize ([running? #t])
           (parameterize-break
            #t
-           (call-with-continuation-prompt
-            thunk
-            break-prompt-tag
-            (λ (cc)
-              (newline)
-              (display "Accept as history[y/n]:")
-              (when (regexp-match? #px"^\\s*y" (read-line (current-input-port) 'any))
-                (cc))))))))))
+           (thunk)))))))
   (define (run-chat s)
     (run (λ () (repl-chat s))))
 

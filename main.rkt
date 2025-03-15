@@ -117,20 +117,29 @@
 (define current-paste-image (make-parameter (ann #f (Option Bytes))))
 (define current-output-prefix (make-parameter (ann #f (Option String))))
 (define (repl-chat [prompt : (U String 'redo 'continue)])
-  (cond
-    [(or (eq? prompt 'redo) (eq? prompt 'continue)) (chat prompt)]
-    [else
-     (define text (current-paste-text))
-     (define image (current-paste-image))
-     (define prefix (current-output-prefix))
-     (define content (if text (string-append "```\n" text "\n```\n" prompt) prompt))
-     (define user (Msg "user" content (if image (list image) '()) '() #f))
-     (if prefix
-         (chat (cons user prefix))
-         (chat user))
-     (current-paste-text #f)
-     (current-paste-image #f)
-     (current-output-prefix #f)]))
+  (call-with-continuation-prompt
+   (λ ()  
+     (cond
+       [(or (eq? prompt 'redo) (eq? prompt 'continue)) (chat prompt)]
+       [else
+        (define text (current-paste-text))
+        (define image (current-paste-image))
+        (define prefix (current-output-prefix))
+        (define content (if text (string-append "```\n" text "\n```\n" prompt) prompt))
+        (define user (Msg "user" content (if image (list image) '()) '() #f))
+        (if prefix
+            (chat (cons user prefix))
+            (chat user))
+        (current-paste-text #f)
+        (current-paste-image #f)
+        (current-output-prefix #f)]))
+   break-prompt-tag
+   (λ ([cc : (-> Nothing)])
+     (newline)
+     (display "Accept as history[y/n]:")
+     (define line (read-line (current-input-port) 'any))
+     (when (and (not (eof-object? line)) (regexp-match? #px"^\\s*y" line))
+       (cc)))))
 
 (define (default-repl-prompt)
   (string-append
