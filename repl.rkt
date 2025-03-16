@@ -83,7 +83,7 @@
   (define current-host (make-parameter "localhost"))
   (define current-port (make-parameter #f))
   (define current-tpl (make-parameter #f))
-  (define current-path-prefix (make-parameter "v1/"))
+  (define current-path-prefix (make-parameter #f))
   (define current-use-ollama (make-parameter #f))
   (command-line
    #:program "rkt-llm-cli"

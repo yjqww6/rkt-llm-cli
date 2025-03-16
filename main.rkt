@@ -47,20 +47,6 @@
   (λ (i s o)
     (new-chatter i s (merge-Options (default-complete-options) o))))
 
-(define oai-compat-chat
-  (make-default-interactive-chatter oai:chat))
-
-(define (oai-compat-completion
-         [tpl : (U String ChatTemplate)]) : InteractiveChatter
-  (make-default-completion-interactive-chatter oai:completion tpl))
-
-(define ollama-chat
-  (make-default-interactive-chatter ollama:chat))
-
-(define (ollama-completion [tpl : (U String ChatTemplate)])
-  (make-default-completion-interactive-chatter ollama:completion tpl))
-
-
 (define-type Chat (-> Interactive Void))
 (define default-chat : Chat
   (λ (s)
@@ -99,19 +85,42 @@
    (λ ()
      ((current-complete) s))))
 
-(define (use-endpoint #:type [type 'oai-compat] #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
-                      #:tpl [tpl : (Option String) #f] #:prefix [prefix : String "v1/"])
+(define-type BackendType (U 'oai-compat 'ollama))
+
+(define (endpoint #:type [type : BackendType 'oai-compat] #:complete? [complete? : Boolean #f]
+                  #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
+                  #:prefix [prefix : (Option String) #f])
+  (make-default-options host
+                        (or port (cond
+                                   [(eq? type 'oai-compat) 8080]
+                                   [(eq? type 'ollama) 11434]))
+                        (string-append (or prefix
+                                           (cond
+                                             [(eq? type 'oai-compat) "v1/"]
+                                             [(eq? type 'ollama) ""]))
+                                       (cond
+                                         [(eq? type 'oai-compat) (if complete? "completions" "chat/completions")]
+                                         [(eq? type 'ollama) (if complete? "api/generate" "api/chat")]))))
+
+(define (new-chatter #:type [type : BackendType 'oai-compat]) : Chatter
   (cond
-    [(eq? type 'oai-compat)
-     (default-complete-options (make-default-options host (or port 8080) (string-append prefix "completions")))
-     (default-chatter-options (make-default-options host (or port 8080) (string-append prefix "chat/completions")))
-     (current-chatter (if tpl (oai-compat-completion tpl) oai-compat-chat))
-     (current-completer oai:completion)]
-    [(eq? type 'ollama)
-     (default-complete-options (make-default-options host (or port 11434) "api/generate"))
-     (default-chatter-options (make-default-options host (or port 11434) "api/chat"))
-     (current-chatter (if tpl (ollama-completion tpl) ollama-chat))
-     (current-completer ollama:completion)]))
+    [(eq? type 'oai-compat) oai:chat]
+    [(eq? type 'ollama) ollama:chat]))
+
+(define (new-completer #:type [type : BackendType 'oai-compat]) : Completer
+  (cond
+    [(eq? type 'oai-compat) oai:completion]
+    [(eq? type 'ollama) ollama:completion]))
+
+(define (use-endpoint #:type [type : BackendType 'oai-compat]
+                      #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
+                      #:tpl [tpl : (Option String) #f] #:prefix [prefix : (Option String) #f])
+  (default-complete-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? #t))
+  (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? (and tpl #t)))
+  (current-completer (new-completer #:type type))
+  (current-chatter (if tpl
+                       (make-default-completion-interactive-chatter (new-completer #:type type) tpl)
+                       (make-default-interactive-chatter (new-chatter #:type type)))))
 
 (define current-paste-text (make-parameter (ann #f (Option String))))
 (define current-paste-image (make-parameter (ann #f (Option Bytes))))
