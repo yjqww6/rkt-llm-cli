@@ -51,13 +51,13 @@
 (define default-chat : Chat
   (λ (s)
     (define new-chatter (with-interactive-hooks (current-chatter)))
-    (new-chatter s (λ (s) (display s) (flush-output)) (current-Options))
+    (new-chatter s ((current-streaming)) (current-Options))
     (newline)))
 
 (define-type Complete (-> String Void))
 (define default-complete : Complete
   (λ (s)
-    ((current-completer) s (λ (s) (display s) (flush-output)) (current-Options))
+    ((current-completer) s ((current-streaming)) (current-Options))
     (newline)))
 
 (define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String])

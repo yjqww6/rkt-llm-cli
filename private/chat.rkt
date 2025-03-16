@@ -1,5 +1,6 @@
 #lang typed/racket/base/shallow
 (require "main.rkt"
+         "suffix.rkt"
          racket/match
          racket/list)
 (provide (all-defined-out))
@@ -79,3 +80,36 @@
   (call-with-input-file* file
     (λ ([p : Input-Port])
       (current-history (cast (read p) History)))))
+
+(define ((default-streaming) [s : String])
+  (display s)
+  (flush-output))
+
+(define (make-check-streaming [check : (-> Char Boolean)]
+                              [up : (-> String Void)]
+                              #:include? [include? #f]) : (-> String Void)
+  (define done : Boolean #f)
+  (λ (s)
+    (cond
+      [(not done)
+       (let loop ([i : Nonnegative-Fixnum 0])
+         (when (< i (string-length s))
+           (cond
+             [(check (string-ref s i))
+              (up (substring s (if include? i (+ i 1))))
+              (set! done #t)]
+             [else (loop (add1 i))])))]
+      [else (up s)])))
+
+(define current-cot-suffix (make-parameter "</think>"))
+
+(define (hide-cot-streaming)
+  (define checker (make-suffixes-checker (list (current-cot-suffix))))
+  (make-check-streaming
+   (λ ([c : Char]) (string? (checker c)))
+   (make-check-streaming
+    (λ ([c : Char]) (not (char-whitespace? c)))
+    (default-streaming)
+    #:include? #t)))
+
+(define current-streaming (make-parameter default-streaming))
