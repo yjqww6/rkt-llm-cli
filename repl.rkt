@@ -57,8 +57,8 @@
 
 (define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
   (define tools (flatten ts))
-  (parameterize ([current-tools (map tool-desc tools)]
-                 [current-tool-callback (tools-callback tools)]
+  (parameterize ([current-tools tools]
+                 [current-tool-callback default-tool-callback]
                  [current-repl-prompt tool-repl-prompt])
     (reset
      (when manual

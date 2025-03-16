@@ -16,7 +16,7 @@
     (define r
       (post-pure-port
        (string->url "http://localhost:9876/tool_call")
-       (jsexpr->bytes (hasheq 'name name 'arguments arguments))))
+       (jsexpr->bytes (hasheq 'name name 'arguments (string->jsexpr arguments)))))
     (define js (port->string r #:close? #t))
     (define j (string->jsexpr js))
     (hash-ref (list-ref (hash-ref j 'content) 0) 'text)))
@@ -24,4 +24,6 @@
 (define (mymcp-tools)
   (define tools (mymcp-list-tools))
   (for/list ([t (in-list tools)])
-    (tool (mymcp-tool-call (hash-ref t 'name)) (hasheq 'type "function" 'function t))))
+    (Tool (hash-ref t 'name)
+          (hasheq 'type "function" 'function t)
+          (mymcp-tool-call (hash-ref t 'name)))))

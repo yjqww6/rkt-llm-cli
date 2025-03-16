@@ -46,7 +46,7 @@
   (jsexpr->bytes
    (hash-and (build-body-common options)
              'messages (map build-ollama-message messages)
-             'tools (null->false (Options-tools options)))))
+             'tools (null->false (map Tool-desc (Options-tools options))))))
 
 
 (define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])

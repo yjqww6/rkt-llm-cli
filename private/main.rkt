@@ -32,6 +32,8 @@
 
 (define-type History (Listof Msg))
 
+(struct Tool ([name : String] [desc : JSExpr] [callback : (-> String (Option String))]))
+
 (define-type Chatter (History (-> String Void) Options -> Msg))
 (define-type Interactive (U String Msg (Pairof Msg String) (Pairof 'result (Listof Msg)) 'redo 'continue))
 (define-type InteractiveChatter (Interactive (-> String Void) Options -> Msg))
@@ -108,7 +110,7 @@
   [endpoint : (Option String) #f merge-right]
   [headers : (Listof String) '() append]
   [stream : (U Null Boolean) '() merge-right/null]
-  [tools : (Listof JSExpr) '() append]
+  [tools : (Listof Tool) '() append]
   [max-tokens : (Option Integer) #f merge-right]
   [stop : (Listof String) '() append]
   [grammar : (Option String) #f merge-right]

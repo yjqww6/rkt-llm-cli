@@ -53,7 +53,7 @@
   (jsexpr->bytes
    (hash-and (build-body-common options)
              'messages (map build-oai-compat-message messages)
-             'tools (null->false (Options-tools options)))))
+             'tools (null->false (map Tool-desc (Options-tools options))))))
 
 (define (parse-content-type-streaming? [headers : (Listof Bytes)])
   (let/ec k : Boolean

@@ -1,14 +1,16 @@
 #lang typed/racket/base/shallow
 (require "main.rkt"
          "tool-template.rkt"
+         "private/types.rkt"
          racket/match
          racket/list)
-(provide current-tool-callback execute tool-repl-prompt make-auto-execute-chat
+(provide current-tool-callback default-tool-callback
+         execute tool-repl-prompt make-auto-execute-chat
          with-nous-tools)
 
-(define-type ToolCallback (-> HashTableTop (Option String)))
+(define-type ToolCallback (-> String String (Option String)))
 (define current-tool-callback
-  (make-parameter (ann (λ (tcs) (error 'tool-callback)) ToolCallback)))
+  (make-parameter (ann (λ (sym tcs) (error 'tool-callback)) ToolCallback)))
 (define current-tool-parser
   (make-parameter (ann (λ (s) '()) (-> String (Listof ToolCall)))))
 
@@ -17,7 +19,7 @@
 
 (define (execute) : Void
   (define (calling [tcs : (Listof ToolCall)])
-    (define tool-args : (Listof HashTableTop)
+    (define tool-args : (Listof (HashTable Symbol String))
       (map
        (λ ([tc : ToolCall])
          (match-define (ToolCall name args id) tc)
@@ -26,10 +28,11 @@
     (let/ec k : Void
       (define tool-resps : (Listof String)
         (for/list ([arg (in-list tool-args)])
+          (match-define (hash* ['name (? string? name)] ['arguments arguments]) arg)
           (when (terminal-port? (current-output-port))
-            (printf "\033[34mExecuting ~a: ~a\033[0m~%" (hash-ref arg 'name) (hash-ref arg 'arguments)))
+            (printf "\033[34mExecuting ~a: ~a\033[0m~%" name arguments))
           (define r
-            ((current-tool-callback) arg))
+            ((current-tool-callback) name arguments))
           (unless r (k (void)))
           r))
       (define tool-msgs
@@ -52,6 +55,15 @@
     (chat s)
     (execute)))
 
+(: default-tool-callback ToolCallback)
+(define (default-tool-callback name arg)
+  (cond
+    [(memf (λ ([t : Tool]) (string=? name (Tool-name t))) (current-tools))
+     =>
+     (λ (tools)
+       ((Tool-callback (car tools)) arg))]
+    [else (error 'default-tool-callback "~a not found" name)]))
+
 (define (tool->user [msg : Msg])
   (if (string=? (Msg-role msg) "tool")
       (struct-copy Msg msg [role (ann "user" Role)])
@@ -69,17 +81,21 @@
 
 (define (with-nous-tools [repl : (-> Void)])
   (define old-callback (current-tool-callback))
-  (define tools (current-tools))
   (define (system-rewrite [s : (Option String)]) : (Option String)
-    (make-nous-system-template tools s))
-  (parameterize ([current-tool-callback (λ ([j : HashTableTop])
-                                          (define r (old-callback j))
+    (make-nous-system-template (map Tool-desc (current-tools)) s))
+  (parameterize ([current-tool-callback (λ ([name : String] [arg : String])
+                                          (define r (old-callback name arg))
                                           (cond
                                             [(not r) #f]
                                             [else
                                              (make-nous-response r)]))]
                  [current-tool-parser parse-nous-toolcall]
-                 [current-tools '()]
+                 [current-interactive-hooks (cons
+                                             (ann
+                                              (λ (i o)
+                                                (values i (struct-copy Options o [tools '()])))
+                                              InteractiveHook)
+                                             (current-interactive-hooks))]
                  [current-messages-preprocessors (cons
                                                   (compose1
                                                    (λ ([s : History]) (map tool->user s))
