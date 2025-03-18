@@ -9,7 +9,7 @@
 (define current-history (make-parameter (ann '() History)))
 
 (define (make-history [history : History] [new-msgs : (Listof Msg)])
-  (define h (append history new-msgs))
+  (define h (if (null? new-msgs) history (append history new-msgs)))
   (define sys (current-system))
   (if sys
       (cons (make-system sys) h)
@@ -23,7 +23,7 @@
        (match/values
         (split-at-right history 1)
         [(history (list (struct* Msg ([role "assistant"]))))
-         (define resp (chatter history streaming options))
+         (define resp (chatter (make-history history '()) streaming options))
          (current-history (append history (list resp)))
          resp])]
       [(eq? msg 'continue)
