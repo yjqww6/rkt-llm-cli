@@ -6,6 +6,7 @@
          "private/chat-template.rkt"
          racket/match
          racket/list
+         racket/string
          racket/port)
 (provide (all-defined-out)
          (all-from-out "private/main.rkt")
@@ -122,8 +123,8 @@
                        (make-default-completion-interactive-chatter (new-completer #:type type) tpl)
                        (make-default-interactive-chatter (new-chatter #:type type)))))
 
-(define current-paste-text (make-parameter (ann #f (Option String))))
-(define current-paste-image (make-parameter (ann #f (Option Bytes))))
+(define current-paste-text (make-parameter (ann '() (Listof String))))
+(define current-paste-image (make-parameter (ann '() (Listof Bytes))))
 (define current-output-prefix (make-parameter (ann #f (Option String))))
 (define (repl-chat [prompt : (U String 'redo 'continue)])
   (call-with-continuation-prompt
@@ -131,16 +132,21 @@
      (cond
        [(or (eq? prompt 'redo) (eq? prompt 'continue)) (chat prompt)]
        [else
-        (define text (current-paste-text))
-        (define image (current-paste-image))
+        (define texts (current-paste-text))
+        (define images (current-paste-image))
         (define prefix (current-output-prefix))
-        (define content (if text (string-append "```\n" text "\n```\n" prompt) prompt))
-        (define user (Msg "user" content (if image (list image) '()) '() #f))
+        (define content (if (not (null? texts))
+                            (string-append "```\n"
+                                           (string-join texts "\n")
+                                           "\n```\n"
+                                           prompt)
+                            prompt))
+        (define user (Msg "user" content images '() #f))
         (if prefix
             (chat (cons user prefix))
             (chat user))
-        (current-paste-text #f)
-        (current-paste-image #f)
+        (current-paste-text '())
+        (current-paste-image '())
         (current-output-prefix #f)]))
    break-prompt-tag
    (λ ([cc : (-> Nothing)])
@@ -150,10 +156,19 @@
      (when (and (not (eof-object? line)) (regexp-match? #px"^\\s*y" line))
        (cc)))))
 
+(: do-paste (case->
+             [String Boolean -> Void]
+             [Bytes Boolean -> Void]))
+(define (do-paste pasted append?)
+  (define param (if (string? pasted) current-paste-text current-paste-image))
+  (cond
+    [append? (param (append (param) (list pasted)))]
+    [else (param (list pasted))]))
+
 (define (default-repl-prompt)
   (string-append
-   (if (current-paste-text) "text " "")
-   (if (current-paste-image) "img " "")
+   (if (not (null? (current-paste-text))) "text " "")
+   (if (not (null? (current-paste-image))) "img " "")
    (if (current-output-prefix) "pre " "")
    ">>>"))
 (define current-repl-prompt (make-parameter default-repl-prompt))
@@ -168,9 +183,9 @@
    [(history (list (struct* Msg ([role "user"] [content (app extract-paste-text paste)] [images images])) assistant))
     #:when (or paste (not (null? images)))
     (when paste
-      (current-paste-text paste))
+      (current-paste-text (list paste)))
     (unless (null? images)
-      (current-paste-image (car images)))
+      (current-paste-image images))
     (current-history history)]))
 
 (define current-repl-loop (make-parameter (ann (λ () (error 'repl-loop)) (-> Any))))

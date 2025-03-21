@@ -43,17 +43,7 @@
 
 (define (paste [append? #f])
   (define pasted (clip))
-  (cond
-    [(string? pasted)
-     (cond
-       [(not append?)
-        (current-paste-text pasted)]
-       [(current-paste-text)
-        =>
-        (λ (s) (current-paste-text (string-append s "\n" pasted)))]
-       [else (current-paste-text pasted)])]
-    [pasted (current-paste-image pasted)]
-    [else (void)]))
+  (do-paste pasted append?))
 
 (define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
   (define tools (flatten ts))
@@ -179,7 +169,7 @@
        =>
        (λ (p)
          (forward p in)
-         (current-paste-text (car (regexp-split multi-input-paste-end (port->string in))))
+         (current-paste-text (list (car (regexp-split multi-input-paste-end (port->string in)))))
          (refreshing))]
       [else (message (port->string in))]))
 
