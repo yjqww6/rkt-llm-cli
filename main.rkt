@@ -200,10 +200,11 @@
         (values h o)))
   (current-interactive-hooks (cons hook (current-interactive-hooks))))
 
-(define (trace-network! [output : Output-Port (current-output-port)])
+(define (trace-network! [only : (U 'send 'recv #f) #f] [output : Output-Port (current-output-port)])
   (current-network-trace
    (lambda (type data)
-     (fprintf output "~a: ~a~%" type data))))
+     (when (or (not only) (eq? type only))
+       (fprintf output "~a: ~a~%" type data)))))
 
 (define (untrace-network!)
   (current-network-trace void))
