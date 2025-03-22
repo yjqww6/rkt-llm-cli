@@ -61,8 +61,10 @@
 
 (define-tool (shell_exec [cmd : string #:desc "command line to be executed"])
   #:desc (format "execute shell command. system type: ~a" (system-type 'os))
-  (printf "")
-  (display (string-append "\033[31m" cmd "\033[0m\n" "Comfirm[y/n]:"))
+  (call/color
+   'red
+   (λ () (printf "~a\tComfirm[y/n]:" cmd))
+   #:newline? #f)
   (if (string=? "y" (read-line))
       (system/string cmd)
       #f))

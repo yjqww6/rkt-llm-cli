@@ -46,6 +46,17 @@
              'messages (map build-ollama-message messages)
              'tools (null->nullable (map Tool-desc (Options-tools options))))))
 
+(define (log-verbose [j : JSExpr])
+  (when (current-verbose)
+    (match j
+      [(hash* ['done #t] ['prompt_eval_count pp]
+              ['eval_count (? integer? tg)] ['eval_duration (? integer? tgt)])
+       (call/color
+        'blue
+        (λ ()
+          (printf "PROMPT:\t~a tokens~%" pp)
+          (printf "EVAL:\t~a tokens, ~a tokens/s~%" tg (/ tg (/ tgt 1e9)))))]
+      [_ (void)])))
 
 (define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])
   (define data (build-chat-body msgs opt))
@@ -68,6 +79,7 @@
          [else
           ((current-network-trace) 'recv l)
           (define j (string->jsexpr l))
+          (log-verbose j)
           (match j
             [(hash* ['message (hash* ['tool_calls (? list? tool-calls)])])
              (for-each

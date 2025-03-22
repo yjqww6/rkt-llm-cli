@@ -176,3 +176,23 @@
   (cond
     [(or (eq? s 'redo) (eq? s 'continue)) #t]
     [else #f]))
+
+(define (call/color [color : (U 'blue 'red)] [thunk : (-> Void)]
+                    #:output [output : Output-Port (current-output-port)]
+                    #:reset? [reset? : Boolean #t]
+                    #:newline? [newline? : Boolean #t])
+  (when reset?
+    (define-values (line col pos) (port-next-location output))
+    (when (and col (> col 0))
+      (newline output)))
+  (cond
+    [(terminal-port? output)
+     (write-string (cond
+                     [(eq? color 'red) "\033[31m"]
+                     [(eq? color 'blue) "\033[34m"])
+                   output)
+     (thunk)
+     (write-string "\033[0m" output)]
+    [else (thunk)])
+  (when newline?
+    (newline output)))

@@ -2,6 +2,7 @@
 (require "main.rkt"
          "tool-template.rkt"
          "private/types.rkt"
+         "private/main.rkt"
          racket/match
          racket/list)
 (provide current-tool-callback default-tool-callback
@@ -29,8 +30,9 @@
       (define tool-resps : (Listof String)
         (for/list ([arg (in-list tool-args)])
           (match-define (hash* ['name (? string? name)] ['arguments arguments]) arg)
-          (when (terminal-port? (current-output-port))
-            (printf "\033[34mExecuting ~a: ~a\033[0m~%" name arguments))
+          (call/color
+           'blue
+           (λ () (printf "Executing ~a: ~a" name arguments)))
           (define r
             ((current-tool-callback) name arguments))
           (unless r (k (void)))
