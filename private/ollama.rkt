@@ -55,7 +55,7 @@
         'blue
         (λ ()
           (printf "PROMPT:\t~a tokens~%" pp)
-          (printf "EVAL:\t~a tokens, ~a tokens/s~%" tg (/ tg (/ tgt 1e9)))))]
+          (printf "EVAL:\t~a tokens, ~a tokens/s" tg (/ tg (/ tgt 1e9)))))]
       [_ (void)])))
 
 (define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])

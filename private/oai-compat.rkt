@@ -65,10 +65,29 @@
           [else (error 'parse-content-type-stream "invalid: ~a" l)])))
     (error 'parse-content-type-stream "no content-type")))
 
+(define (log-verbose [j : JSExpr])
+  (when (current-verbose)
+    (match j
+      [(hash* ['timings (hash* ['prompt_n pp] ['prompt_per_second ppt]
+                               ['predicted_n tg] ['predicted_per_second tgt])])
+       (call/color
+        'blue
+        (λ ()
+          (printf "PROMPT\t~a tokens, ~a tokens/s~%" pp ppt)
+          (printf "EVAL\t~a tokens, ~a tokens/s" tg tgt)))]
+      [(hash* ['usage (hash* ['prompt_tokens pp] ['completion_tokens tg])])
+       (call/color
+        'blue
+        (λ ()
+          (printf "PROMPT\t~a tokens~%" pp)
+          (printf "EVAL\t~a tokens" tg)))]
+      [else (void)])))
+
 (define (handle-json-body [port : Input-Port] [streaming : (String -> Void)]) : Msg
   (define s (port->bytes port))
   ((current-network-trace) 'recv s)
   (define j (bytes->jsexpr s))
+  (log-verbose j)
   (match (json-ref j 'choices 0 'message)
     [(hash* ['content content #:default ""]
             ['tool_calls (? list? tool-calls) #:default '()])
@@ -111,6 +130,7 @@
        (ToolCall (string-append na nb) (string-append aa ab) (string-append ia ib))]
       [(#f b) b]))
   (define (handle [j : JSExpr]) : Void
+    (log-verbose j)
     (define delta (json-ref j 'choices 0 'delta))
     (match delta
       [(hash* ['content (? string? content)])
@@ -175,6 +195,7 @@
     (error 'send "status: ~a" status))
   (define streaming? (parse-content-type-streaming? headers))
   (define (handle [j : JSExpr])
+    (log-verbose j)
     (define text (cast (json-ref j 'choices 0 'text) String))
     (streaming text)
     (write-string text all-text)
