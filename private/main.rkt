@@ -52,6 +52,17 @@
            (loop (hash-set h k v) r)
            (loop h r))])))
 
+(: hash-and/null (All (K V) (->* ((Immutable-HashTable K V)) #:rest-star (K (U 'null V)) (Immutable-HashTable K V))))
+(define (hash-and/null h . kv*)
+  (let loop ([h : (Immutable-HashTable K V) h]
+             [kv* : (Rec x (U Null (List* K (U 'null V) x))) kv*])
+    (match kv*
+      ['() h]
+      [(list* k v r)
+       (if (eq? v 'null)
+           (loop h r)
+           (loop (hash-set h k v) r))])))
+
 (: hash-build (All (K V) (->* () #:rest-star (K (Option V)) (Immutable-HashTable K V))))
 (define (hash-build . kv*)
   (apply hash-and ((inst hasheq K V)) kv*))
@@ -77,9 +88,9 @@
 (define (merge-right a b)
   (or b a))
 
-(: merge-right/null (All (a) (U Null a) (U Null a) -> (U Null a)))
+(: merge-right/null (All (a) (U 'null a) (U 'null a) -> (U 'null a)))
 (define (merge-right/null a b)
-  (if (not (null? b)) b a))
+  (if (not (eq? b 'null)) b a))
 
 (define-syntax-parser define-option
   [(_ Name:id [Id:id (~literal :) Type Def:expr merger:id] ...)
@@ -109,7 +120,7 @@
 (define-option Options
   [endpoint : (Option String) #f merge-right]
   [headers : (Listof String) '() append]
-  [stream : (U Null Boolean) '() merge-right/null]
+  [stream : (U 'null Boolean) 'null merge-right/null]
   [tools : (Listof Tool) '() append]
   [max-tokens : (Option Integer) #f merge-right]
   [stop : (Listof String) '() append]

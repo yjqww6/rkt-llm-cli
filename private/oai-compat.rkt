@@ -34,20 +34,19 @@
        (list (hasheq 'type "text" 'text content)))])))
 
 (define (build-body-common [options : Options])
-  (define s (Options-stream options))
-  (define really-stream? (if (null? s) #t s))
-  (hash-build
-   'temperature (Options-temperature options)
-   'top_k (Options-top-k options)
-   'top_p (Options-top-p options)
-   'min_p (Options-min-p options)
-   'repeat_penalty (Options-repeat-penalty options)
-   'stream really-stream?
-   'stream_options (and really-stream?
-                        (hasheq 'include_usage #t))
-   'max_tokens (Options-max-tokens options)
-   'stop (null->false (Options-stop options))
-   'grammar (Options-grammar options)))
+  (hash-and/null
+   (hash-build
+    'temperature (Options-temperature options)
+    'top_k (Options-top-k options)
+    'top_p (Options-top-p options)
+    'min_p (Options-min-p options)
+    'repeat_penalty (Options-repeat-penalty options)
+    'stream_options (and (Options-stream options)
+                         (hasheq 'include_usage #t))
+    'max_tokens (Options-max-tokens options)
+    'stop (null->false (Options-stop options))
+    'grammar (Options-grammar options))
+   'stream (Options-stream options)))
 
 (define (build-chat-body [messages : History] [options : Options])
   (jsexpr->bytes

@@ -213,7 +213,8 @@
   (parameterize ([current-output-prefix (current-output-prefix)]
                  [current-paste-text (current-paste-text)]
                  [current-paste-image (current-paste-image)]
-                 [current-max-tokens 0]
+                 [current-max-tokens 1]
+                 [current-stream #f]
                  [current-history (current-history)]
                  [current-output-port (open-output-nowhere)])
     (repl-chat "")))

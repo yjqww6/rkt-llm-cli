@@ -35,12 +35,11 @@
                 'num_ctx (Options-context-window options)
                 'num_predict (Options-max-tokens options)
                 'stop (null->false (Options-stop options))))
-  (define s (Options-stream options))
-  (define really-stream? (if (null? s) #t s))
-  (hash-build
-   'options h
-   'stream really-stream?
-   'model (Options-model options)))
+  (hash-and/null
+   (hash-build
+    'options h
+    'model (Options-model options))
+   'stream (Options-stream options)))
 
 (define (build-chat-body [messages : History] [options : Options])
   (jsexpr->bytes
