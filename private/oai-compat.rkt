@@ -11,7 +11,7 @@
   (hash-build
    'role role
    'tool_calls
-   (null->false
+   (null->nullable
     (map (λ ([tc : ToolCall])
            (match-define (ToolCall name arguments id) tc)
            (hash-build
@@ -34,25 +34,24 @@
        (list (hasheq 'type "text" 'text content)))])))
 
 (define (build-body-common [options : Options])
-  (hash-and/null
-   (hash-build
-    'temperature (Options-temperature options)
-    'top_k (Options-top-k options)
-    'top_p (Options-top-p options)
-    'min_p (Options-min-p options)
-    'repeat_penalty (Options-repeat-penalty options)
-    'stream_options (and (Options-stream options)
-                         (hasheq 'include_usage #t))
-    'max_tokens (Options-max-tokens options)
-    'stop (null->false (Options-stop options))
-    'grammar (Options-grammar options))
-   'stream (Options-stream options)))
+  (hash-build
+   'temperature (Options-temperature options)
+   'top_k (Options-top-k options)
+   'top_p (Options-top-p options)
+   'min_p (Options-min-p options)
+   'repeat_penalty (Options-repeat-penalty options)
+   'stream (Options-stream options)
+   'stream_options (and (Options-stream options)
+                        (hasheq 'include_usage #t))
+   'max_tokens (Options-max-tokens options)
+   'stop (null->nullable (Options-stop options))
+   'grammar (Options-grammar options)))
 
 (define (build-chat-body [messages : History] [options : Options])
   (jsexpr->bytes
-   (hash-and (build-body-common options)
+   (hash-add (build-body-common options)
              'messages (map build-oai-compat-message messages)
-             'tools (null->false (map Tool-desc (Options-tools options))))))
+             'tools (null->nullable (map Tool-desc (Options-tools options))))))
 
 (define (parse-content-type-streaming? [headers : (Listof Bytes)])
   (let/ec k : Boolean
@@ -161,7 +160,7 @@
 
 (define (build-completion-body [prompt : String] [options : Options])
   (jsexpr->bytes
-   (hash-and (build-body-common options) 'prompt prompt)))
+   (hash-set (build-body-common options) 'prompt prompt)))
 
 (define (completion [prompt : String] [streaming : (String -> Void)] [opt : Options])
   (define data (build-completion-body prompt opt))

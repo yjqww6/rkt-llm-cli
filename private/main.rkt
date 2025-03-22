@@ -41,36 +41,30 @@
 (define-type ChatTemplate (History -> String))
 (define-type InteractiveHook (-> Interactive Options (Values Interactive Options)))
 
-(: hash-and (All (K V) (->* ((Immutable-HashTable K V)) #:rest-star (K (Option V)) (Immutable-HashTable K V))))
-(define (hash-and h . kv*)
-  (let loop ([h : (Immutable-HashTable K V) h]
-             [kv* : (Rec x (U Null (List* K (Option V) x))) kv*])
-    (match kv*
-      ['() h]
-      [(list* k v r)
-       (if v
-           (loop (hash-set h k v) r)
-           (loop h r))])))
+(define-type (Nullable t) (U 'null t))
 
-(: hash-and/null (All (K V) (->* ((Immutable-HashTable K V)) #:rest-star (K (U 'null V)) (Immutable-HashTable K V))))
-(define (hash-and/null h . kv*)
+(: is-null? (All (a) (-> (Nullable a) Boolean : 'null)))
+(define (is-null? a) (eq? 'null a))
+
+(: hash-add (All (K V) (->* ((Immutable-HashTable K V)) #:rest-star (K (Nullable V)) (Immutable-HashTable K V))))
+(define (hash-add h . kv*)
   (let loop ([h : (Immutable-HashTable K V) h]
              [kv* : (Rec x (U Null (List* K (U 'null V) x))) kv*])
     (match kv*
       ['() h]
       [(list* k v r)
-       (if (eq? v 'null)
+       (if (is-null? v)
            (loop h r)
            (loop (hash-set h k v) r))])))
 
-(: hash-build (All (K V) (->* () #:rest-star (K (Option V)) (Immutable-HashTable K V))))
+(: hash-build (All (K V) (->* () #:rest-star (K (Nullable V)) (Immutable-HashTable K V))))
 (define (hash-build . kv*)
-  (apply hash-and ((inst hasheq K V)) kv*))
+  (apply hash-add ((inst hasheq K V)) kv*))
 
-(: null->false (All (a) (Listof a) -> (Option (Pairof a (Listof a)))))
-(define (null->false l)
+(: null->nullable (All (a) (Listof a) -> (Nullable (Pairof a (Listof a)))))
+(define (null->nullable l)
   (if (null? l)
-      #f
+      'null
       l))
 
 (: json-ref (JSExpr (U Integer Symbol) * -> JSExpr))
@@ -84,16 +78,21 @@
        (loop (hash-ref j k) k*)]
       [(_ _) #f])))
 
-(: merge-right (All (a) (Option a) (Option a) -> (Option a)))
+(: merge-right (All (a) (Nullable a) (Nullable a) -> (Nullable a)))
 (define (merge-right a b)
-  (or b a))
+  (if (is-null? a) b a))
 
-(: merge-right/null (All (a) (U 'null a) (U 'null a) -> (U 'null a)))
-(define (merge-right/null a b)
-  (if (not (eq? b 'null)) b a))
+(begin-for-syntax
+  (define-syntax-class Opt-Type #:datum-literals (:)
+    (pattern ((~literal Nullable) _)
+      #:with Merger #'merge-right
+      #:with Def #''null)
+    (pattern ((~literal Listof) _)
+      #:with Merger #'append
+      #:with Def #''())))
 
 (define-syntax-parser define-option
-  [(_ Name:id [Id:id (~literal :) Type Def:expr merger:id] ...)
+  [(_ Name:id [Id:id (~literal :) Type:Opt-Type] ...)
    #:with make-Name (format-id #'Name "make-~a" #'Name)
    #:with current-Name (format-id #'Name "current-~a" #'Name)
    #:with merge-Name (format-id #'Name "merge-~a" #'Name)
@@ -106,34 +105,34 @@
    #:with (b ...) (generate-temporaries #'(Id ...))
    #'(begin
        (struct Name ([Id : Type] ...) #:prefab)
-       (define (make-Name (~@ K [Id : Type Def]) ...)
+       (define (make-Name (~@ K [Id : Type Type.Def]) ...)
          (Name Id ...))
-       (define current-Id (make-parameter (ann Def Type)))
+       (define current-Id (make-parameter (ann Type.Def Type)))
        ...
        (define (current-Name) : Name
          (Name (current-Id) ...))
        (define (merge-Name [opta : Name] [optb : Name])
          (match-define (Name a ...) opta)
          (match-define (Name b ...) optb)
-         (Name (merger a b) ...)))])
+         (Name (Type.Merger a b) ...)))])
 
 (define-option Options
-  [endpoint : (Option String) #f merge-right]
-  [headers : (Listof String) '() append]
-  [stream : (U 'null Boolean) 'null merge-right/null]
-  [tools : (Listof Tool) '() append]
-  [max-tokens : (Option Integer) #f merge-right]
-  [stop : (Listof String) '() append]
-  [grammar : (Option String) #f merge-right]
+  [endpoint : (Nullable String)]
+  [headers : (Listof String)]
+  [stream : (Nullable Boolean)]
+  [tools : (Listof Tool)]
+  [max-tokens : (Nullable Integer)]
+  [stop : (Listof String)]
+  [grammar : (Nullable String)]
   ;; sampling
-  [temperature : (Option Flonum) #f merge-right]
-  [top-k : (Option Positive-Integer) #f merge-right]
-  [top-p : (Option Flonum) #f merge-right]
-  [min-p : (Option Flonum) #f merge-right]
-  [repeat-penalty : (Option Flonum) #f merge-right]
+  [temperature : (Nullable Flonum)]
+  [top-k : (Nullable Positive-Integer)]
+  [top-p : (Nullable Flonum)]
+  [min-p : (Nullable Flonum)]
+  [repeat-penalty : (Nullable Flonum)]
   ;; ollama
-  [model : (Option String) #f merge-right]
-  [context-window : (Option Exact-Positive-Integer) #f merge-right])
+  [model : (Nullable String)]
+  [context-window : (Nullable Exact-Positive-Integer)])
 
 (define current-verbose (make-parameter (ann #f Boolean)))
 (define current-network-trace (make-parameter (ann void (-> (U 'send 'recv) (U Bytes String) Void))))

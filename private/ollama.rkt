@@ -10,7 +10,7 @@
   (hash-build
    'role role
    'tool_calls
-   (null->false
+   (null->nullable
     (map (λ ([tc : ToolCall])
            (match-define (ToolCall name arguments id) tc)
            (hash-build
@@ -21,7 +21,7 @@
          tool-calls))
    'content content
    'images
-   (null->false
+   (null->nullable
     (map (λ ([img : Bytes]) (bytes->string/latin-1 (base64-encode img))) images))))
 
 (define (build-body-common [options : Options])
@@ -34,18 +34,17 @@
                 'repeat_penalty (Options-repeat-penalty options)
                 'num_ctx (Options-context-window options)
                 'num_predict (Options-max-tokens options)
-                'stop (null->false (Options-stop options))))
-  (hash-and/null
-   (hash-build
-    'options h
-    'model (Options-model options))
+                'stop (null->nullable (Options-stop options))))
+  (hash-build
+   'options h
+   'model (Options-model options)
    'stream (Options-stream options)))
 
 (define (build-chat-body [messages : History] [options : Options])
   (jsexpr->bytes
-   (hash-and (build-body-common options)
+   (hash-add (build-body-common options)
              'messages (map build-ollama-message messages)
-             'tools (null->false (map Tool-desc (Options-tools options))))))
+             'tools (null->nullable (map Tool-desc (Options-tools options))))))
 
 
 (define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])
@@ -92,7 +91,7 @@
 
 (define (build-completion-body [prompt : String] [options : Options])
   (jsexpr->bytes
-   (hash-and (build-body-common options)
+   (hash-add (build-body-common options)
              'prompt prompt
              'raw #t)))
 
