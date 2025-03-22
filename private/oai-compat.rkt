@@ -20,7 +20,7 @@
             'function
             (hasheq 'name name 'arguments arguments)))
          tool-calls))
-   'tool_call_id tool-call-id
+   'tool_call_id (false->nullable tool-call-id)
    'content
    (cond
      [(null? images) content]

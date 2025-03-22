@@ -67,6 +67,10 @@
       'null
       l))
 
+(: false->nullable (All (a) (Option a) -> (Nullable a)))
+(define (false->nullable a)
+  (if a a 'null))
+
 (: json-ref (JSExpr (U Integer Symbol) * -> JSExpr))
 (define (json-ref j . k*)
   (let loop ([j j] [k* k*])
