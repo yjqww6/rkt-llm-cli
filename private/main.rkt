@@ -80,7 +80,7 @@
 
 (: merge-right (All (a) (Nullable a) (Nullable a) -> (Nullable a)))
 (define (merge-right a b)
-  (if (is-null? a) b a))
+  (if (is-null? b) a b))
 
 (begin-for-syntax
   (define-syntax-class Opt-Type #:datum-literals (:)

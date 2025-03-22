@@ -38,7 +38,7 @@
   (hash-build
    'options h
    'model (Options-model options)
-   'stream (Options-stream options)))
+   'stream (merge-right #t (Options-stream options))))
 
 (define (build-chat-body [messages : History] [options : Options])
   (jsexpr->bytes
