@@ -13,11 +13,18 @@
    [(_ _)
     (values messages #f)]))
 
-(define (split-system [messages : History])
+(define (inject-system-to-user [messages : History]
+                               [join : (-> String String String)
+                                     (λ (a b) (string-append a "\n\n" b))])
   (match messages
-    [(cons (struct* Msg ([role "system"] [content sys])) rest)
-     (values sys rest)]
-    [else (values #f messages)]))
+    [(list* (struct* Msg ([role "system"] [content system]))
+            (and (struct* Msg ([role "user"] [content content])) user)
+            rest)
+     (cons (struct-copy Msg user [content (join system content)])
+           rest)]
+    [(cons (struct* Msg ([role "system"])) _)
+     (error 'inject-system-to-user "system must be followed by user")]
+    [_ messages]))
 
 (define (chatml [messages : History]) : String
   (define-values (his prefill) (split-prefill messages))
@@ -34,16 +41,11 @@
 
 (define (gemma [messages : History]) : String
   (define-values (h prefill) (split-prefill messages))
-  (define-values (sys his) (split-system h))
   (define s (open-output-string))
-  (for ([msg (in-list his)]
-        [i (in-naturals)])
+  (for ([msg (in-list (inject-system-to-user h))])
     (match-define (struct* Msg ([role role] [content content])) msg)
     (define mapped-role (if (string=? role "assistant") "model" role))
     (write-string (format "<start_of_turn>~a\n" mapped-role) s)
-    (when (and sys (= i 0))
-      (write-string sys s)
-      (write-string "\n\n" s))
     (write-string content s)
     (write-string "<end_of_turn>\n" s))
   (write-string "<start_of_turn>model\n" s)
