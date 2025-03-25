@@ -38,7 +38,7 @@
 (define-type Interactive (U String Msg (Pairof Msg String) (Pairof 'result (Listof Msg)) 'redo 'continue))
 (define-type InteractiveChatter (Interactive (-> String Void) Options -> Msg))
 (define-type Completer (String (-> String Void) Options -> String))
-(define-type ChatTemplate (History -> String))
+(define-type ChatTemplate (History Options -> String))
 (define-type InteractiveHook (-> Interactive Options (Values Interactive Options)))
 
 (define-type (Nullable t) (U 'null t))

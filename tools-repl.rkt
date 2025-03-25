@@ -7,7 +7,7 @@
          racket/list)
 (provide current-tool-callback default-tool-callback
          execute tool-repl-prompt make-auto-execute-chat
-         with-nous-tools)
+         with-nous-tools with-mistral-tools)
 
 (define-type ToolCallback (-> String String (Option String)))
 (define current-tool-callback
@@ -103,4 +103,19 @@
                                                    (λ ([s : History]) (map tool->user s))
                                                    (λ ([s : History]) (map-system system-rewrite s)))
                                                   (current-messages-preprocessors))])
+    (repl)))
+
+(define (with-mistral-tools [repl : (-> Void)])
+  (define (post [m : Msg])
+    (match m
+      [(struct* Msg ([role "assistant"] [content (app parse-mistral-toolcall tcs)]))
+       #:when (not (null? tcs))
+       (struct-copy Msg m
+                    [content ""]
+                    [tool-calls (map (λ ([tc : ToolCall])
+                                       (struct-copy ToolCall tc
+                                                    [id (number->string (random 100000 999999))]))
+                                     tcs)])]
+      [_ m]))
+  (parameterize ([current-messages-postprocessors (cons post (current-messages-postprocessors))])
     (repl)))

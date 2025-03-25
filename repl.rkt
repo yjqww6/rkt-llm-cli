@@ -52,7 +52,8 @@
                  [current-repl-prompt tool-repl-prompt])
     (reset
      (when manual
-       (shift k (cond [else (with-nous-tools k)])))
+       (shift k (cond [(eq? manual 'mistral) (with-mistral-tools k)]
+                      [else (with-nous-tools k)])))
      (when auto?
        (shift k (parameterize ([current-chat (make-auto-execute-chat (current-chat))])
                   (k))))

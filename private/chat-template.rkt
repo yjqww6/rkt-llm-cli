@@ -1,5 +1,6 @@
 #lang typed/racket/base/shallow
 (require "main.rkt"
+         "types.rkt"
          racket/list
          racket/match
          racket/string)
@@ -26,7 +27,7 @@
      (error 'inject-system-to-user "system must be followed by user")]
     [_ messages]))
 
-(define (chatml [messages : History]) : String
+(define (chatml [messages : History] [o : Options]) : String
   (define-values (his prefill) (split-prefill messages))
   (define s (open-output-string))
   (for ([msg (in-list his)])
@@ -39,7 +40,7 @@
     (write-string prefill s))
   (get-output-string s))
 
-(define (gemma [messages : History]) : String
+(define (gemma [messages : History] [o : Options]) : String
   (define-values (h prefill) (split-prefill messages))
   (define s (open-output-string))
   (for ([msg (in-list (inject-system-to-user h))])
@@ -51,6 +52,50 @@
   (write-string "<start_of_turn>model\n" s)
   (when prefill
     (write-string prefill s))
+  (get-output-string s))
+
+(define (tool-call->jsexpr [tc : ToolCall]) : JSExpr
+  (match-define (struct* ToolCall ([name name] [arguments arguments] [id id])) tc)
+  (hasheq 'name name
+          'arguments (string->jsexpr arguments)
+          'id id))
+
+;;; mistral-v7-tekken
+(define (mistral [messages : History] [o : Options]) : String
+  (define-values (h prefill) (split-prefill messages))
+  (define s (open-output-string))
+  (define (put [str : String]) (write-string str s))
+  (for (#:do [(define len (length h))]
+        [msg (in-list h)]
+        [i (in-naturals 1)])
+    (match msg
+      [(struct* Msg ([role "system"] [content content]))
+       (put "[SYSTEM_PROMPT]")
+       (put content)
+       (put "[/SYSTEM_PROMPT]")]
+      [(struct* Msg ([role "user"] [content content]))
+       (when (= i len)
+         (define tools (Options-tools o))
+         (unless (null? tools)
+           (put "[AVAILABLE_TOOLS]")
+           (put (jsexpr->string (map Tool-desc tools)))
+           (put "[/AVAILABLE_TOOLS]")))
+       (put "[INST]")
+       (put content)
+       (put "[/INST]")]
+      [(struct* Msg ([role "assistant"] [content content] [tool-calls tool-calls]))
+       (put (string-trim content #:left? #f))
+       (unless (null? tool-calls)
+         (put "[TOOL_CALLS]")
+         (put (jsexpr->string (map tool-call->jsexpr tool-calls))))]
+      [(struct* Msg ([role "tool"] [content content] [tool-call-id (? string? tool-call-id)]))
+       (put "[TOOL_RESULTS]")
+       (put tool-call-id)
+       (put "[TOOL_CONTENT]")
+       (put content)
+       (put "[/TOOL_RESULTS]")]))
+  (when prefill
+    (put prefill))
   (get-output-string s))
 
 (define (skip-cot-tokens [msgs : History] #:sep [sep : String "</think>"]) : History
@@ -71,8 +116,9 @@
   (define tpl
     (match name
       ["chatml" chatml]
-      ["gemma" gemma]))
+      ["gemma" gemma]
+      ["mistral" mistral]))
   (cond
     [(not skip-cot?) tpl]
     [else
-     (compose1 tpl skip-cot-tokens)]))
+     (λ (m o) (tpl (skip-cot-tokens m) o))]))

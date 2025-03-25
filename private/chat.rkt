@@ -55,7 +55,7 @@
 
 (define (make-chat-by-template [completer : Completer] [chat-template : ChatTemplate]) : Chatter
   (λ (history streaming options)
-    (define output (completer (chat-template history) streaming options))
+    (define output (completer (chat-template history options) streaming options))
     (make-assistant output)))
 
 (define (undo)

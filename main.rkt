@@ -22,6 +22,12 @@
   (map-chatter chatter
                (λ (h) (((inst foldl (-> History History) (-> History History))
                         compose1 values (current-messages-preprocessors)) h))))
+(define current-messages-postprocessors (make-parameter (ann '() (Listof (-> Msg Msg)))))
+(define (with-messages-postprocessor [chatter : Chatter]) : Chatter
+  (λ (h s o)
+    (define m (chatter h s o))
+    (((inst foldl (-> Msg Msg) (-> Msg Msg))
+      compose1 values (current-messages-postprocessors)) m)))
 
 (define current-interactive-hooks (make-parameter (ann '() (Listof InteractiveHook))))
 (define (with-interactive-hooks [chatter : InteractiveChatter]) : InteractiveChatter
@@ -38,13 +44,13 @@
     (chatter new-h s new-o)))
 
 (define (make-default-interactive-chatter [chatter : Chatter]) : InteractiveChatter
-  (define new-chatter (make-interactive-chat (with-messages-preprocessor chatter)))
+  (define new-chatter (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor chatter))))
   (λ (i s o)
     (new-chatter i s (merge-Options (default-chatter-options) o))))
 
 (define (make-default-completion-interactive-chatter [complete : Completer] [tpl : (U String ChatTemplate)]) : InteractiveChatter
   (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
-  (define new-chatter (make-interactive-chat (with-messages-preprocessor (make-chat-by-template complete chat-tpl))))
+  (define new-chatter (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor (make-chat-by-template complete chat-tpl)))))
   (λ (i s o)
     (new-chatter i s (merge-Options (default-complete-options) o))))
 
