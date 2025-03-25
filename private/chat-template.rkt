@@ -5,29 +5,22 @@
          racket/string)
 (provide chat-template chatml skip-cot-tokens)
 
-(define (split-messages [messages : History] [merge-system : Boolean])
-  : (Values (Option String) History (Option String))
-  (: his History)
-  (define-values (sys his)
-    (cond
-      [merge-system (values #f messages)]
-      [else
-       (match messages
-         [(cons (struct* Msg ([role "system"] [content sys])) rest)
-          (values sys rest)]
-         [else (values #f messages)])]))
-  (cond
-    [(null? his) (values sys his #f)]
-    [else
-     (match/values
-      (split-at-right his 1)
-      [(h (list (struct* Msg ([role "assistant"] [content prefill]))))
-       (values sys h prefill)]
-      [(_ _)
-       (values sys his #f)])]))
+(define (split-prefill [messages : History])
+  (match/values
+   (split-at-right messages 1)
+   [(h (list (struct* Msg ([role "assistant"] [content prefill]))))
+    (values h prefill)]
+   [(_ _)
+    (values messages #f)]))
+
+(define (split-system [messages : History])
+  (match messages
+    [(cons (struct* Msg ([role "system"] [content sys])) rest)
+     (values sys rest)]
+    [else (values #f messages)]))
 
 (define (chatml [messages : History]) : String
-  (define-values (_ his prefill) (split-messages messages #t))
+  (define-values (his prefill) (split-prefill messages))
   (define s (open-output-string))
   (for ([msg (in-list his)])
     (match-define (struct* Msg ([role role] [content content])) msg)
@@ -40,7 +33,8 @@
   (get-output-string s))
 
 (define (gemma [messages : History]) : String
-  (define-values (sys his prefill) (split-messages messages #f))
+  (define-values (h prefill) (split-prefill messages))
+  (define-values (sys his) (split-system h))
   (define s (open-output-string))
   (for ([msg (in-list his)]
         [i (in-naturals)])
