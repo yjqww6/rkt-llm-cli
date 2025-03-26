@@ -65,8 +65,8 @@
   (define-values (h prefill) (split-prefill messages))
   (define s (open-output-string))
   (define (put [str : String]) (write-string str s))
-  (for (#:do [(define len (length h))]
-        [msg (in-list h)]
+  (define len (length h))
+  (for ([msg (in-list h)]
         [i (in-naturals 1)])
     (match msg
       [(struct* Msg ([role "system"] [content content]))
