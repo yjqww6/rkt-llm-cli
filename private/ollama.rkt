@@ -2,11 +2,12 @@
 (require "main.rkt"
          "types.rkt"
          racket/match
+         racket/list
          racket/string)
 (provide chat completion)
 
 (define (build-ollama-message [message : Msg]) : (Immutable-HashTable Symbol JSExpr)
-  (match-define (Msg role content images tool-calls _) message)
+  (match-define (Msg role content tool-calls _) message)
   (hash-build
    'role role
    'tool_calls
@@ -19,10 +20,18 @@
             'function
             (hasheq 'name name 'arguments (string->jsexpr arguments))))
          tool-calls))
-   'content content
+   'content (if (string? content)
+                content
+                (string-join (filter string? content) "\n"))
    'images
    (null->nullable
-    (map (λ ([img : Bytes]) (bytes->string/latin-1 (base64-encode img))) images))))
+    (if (string? content) '()
+        (filter-map
+         (λ ([item : (U String Image)])
+           (if (Image? item)
+               (bytes->string/latin-1 (base64-encode (Image-data item)))
+               #f))
+         content)))))
 
 (define (build-body-common [options : Options])
   (: h (Immutable-HashTable Symbol JSExpr))
@@ -99,7 +108,7 @@
           (loop)])))
    void)
   (close-input-port body)
-  (Msg "assistant" (get-output-string output-content) '() (reverse tools) #f))
+  (Msg "assistant" (get-output-string output-content) (reverse tools) #f))
 
 (define (build-completion-body [prompt : String] [options : Options])
   (jsexpr->bytes

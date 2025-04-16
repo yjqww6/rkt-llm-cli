@@ -18,7 +18,7 @@
 (define (upload-image)
   (define p (get-file))
   (when p
-    (current-paste-image (file->bytes p))))
+    (current-paste-image (Image (file->bytes p)))))
 
 (define (bitmap->bytes bm)
   (define b (open-output-bytes))
@@ -35,7 +35,7 @@
       [()
        (define t (init))
        (or (let ([b (send c get-clipboard-bitmap t)])
-             (and b (bitmap->bytes b)))
+             (and b (Image (bitmap->bytes b))))
            (send c get-clipboard-string t))]
       [(s)
        (define t (init))

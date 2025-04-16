@@ -7,7 +7,7 @@
 (provide chat completion)
 
 (define (build-oai-compat-message [message : Msg]) : (Immutable-HashTable Symbol JSExpr)
-  (match-define (Msg role content images tool-calls tool-call-id) message)
+  (match-define (Msg role content tool-calls tool-call-id) message)
   (hash-build
    'role role
    'tool_calls
@@ -23,15 +23,17 @@
    'tool_call_id (false->nullable tool-call-id)
    'content
    (cond
-     [(null? images) content]
+     [(string? content) content]
      [else
-      (append
-       (map (λ ([img : Bytes])
-              (define d (string-append "data:image/jpeg;base64,"
-                                       (bytes->string/latin-1 (base64-encode img))))
-              (hasheq 'type "image_url" 'image_url (hasheq 'url d)))
-            images)
-       (list (hasheq 'type "text" 'text content)))])))
+      (map (λ ([item : (U String Image)])
+             (cond
+               [(string? item)
+                (hasheq 'type "text" 'text item)]
+               [else
+                (define d (string-append "data:image/jpeg;base64,"
+                                         (bytes->string/latin-1 (base64-encode (Image-data item)))))
+                (hasheq 'type "image_url" 'image_url (hasheq 'url d))]))
+           content)])))
 
 (define (build-body-common [options : Options])
   (hash-build
@@ -96,7 +98,7 @@
          [(? string?) content]
          ['null ""]))
      (streaming str-content)
-     (Msg "assistant" str-content '()
+     (Msg "assistant" str-content
           (map (λ ([tc : JSExpr]) ToolCall
                  (match tc
                    [(hash* ['id (? string? id) #:default ""]
@@ -156,7 +158,7 @@
      (on-event-stream port handle))
    (λ ()
      (hash-clear! streaming-tools)))
-  (Msg "assistant" (get-output-string whole-content) '()
+  (Msg "assistant" (get-output-string whole-content)
        (for/list ([tc (in-hash-values streaming-tools)]
                   #:when tc)
          tc)

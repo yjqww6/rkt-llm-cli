@@ -130,7 +130,7 @@
                        (make-default-interactive-chatter (new-chatter #:type type)))))
 
 (define current-paste-text (make-parameter (ann '() (Listof String))))
-(define current-paste-image (make-parameter (ann '() (Listof Bytes))))
+(define current-paste-image (make-parameter (ann '() (Listof Image))))
 (define current-output-prefix (make-parameter (ann #f (Option String))))
 (define (repl-chat [prompt : (U String 'redo 'continue)])
   (call-with-continuation-prompt
@@ -147,7 +147,9 @@
                                            "\n```\n"
                                            prompt)
                             prompt))
-        (define user (Msg "user" content images '() #f))
+        (define user (Msg "user" (if (null? images)
+                                     content
+                                     (append images (list content))) '() #f))
         (if prefix
             (chat (cons user prefix))
             (chat user))
@@ -164,7 +166,7 @@
 
 (: do-paste (case->
              [String Boolean -> Void]
-             [Bytes Boolean -> Void]))
+             [Image Boolean -> Void]))
 (define (do-paste pasted append?)
   (define param (if (string? pasted) current-paste-text current-paste-image))
   (cond
@@ -172,11 +174,12 @@
     [else (param (list pasted))]))
 
 (define (default-repl-prompt)
-  (string-append
-   (if (not (null? (current-paste-text))) "text " "")
-   (if (not (null? (current-paste-image))) "img " "")
-   (if (current-output-prefix) "pre " "")
-   ">>>"))
+  (with-handlers* ([exn:fail? (λ (e) ">>>")])
+    (string-append
+     (if (not (null? (current-paste-text))) "text " "")
+     (if (not (null? (current-paste-image))) "img " "")
+     (if (current-output-prefix) "pre " "")
+     ">>>")))
 (define current-repl-prompt (make-parameter default-repl-prompt))
 
 (define (take-last-prompt)
@@ -184,9 +187,21 @@
     (match (regexp-match #px"^```\n(.*)\n```(.*)$" content)
       [(list _ paste _) paste]
       [_ #f]))
+  (define (extract-paste [content : (U String (Listof (U Image String)))])
+    (cond
+      [(string? content) (extract-paste-text content)]
+      [else
+       (define item (last content))
+       (cond
+         [(string? item) (extract-paste-text item)]
+         [else #f])]))
+  (define (extract-imgs [content : (U String (Listof (U Image String)))]) : (Listof Image)
+    (cond
+      [(string? content) '()]
+      [else (filter-map (λ ([item : (U Image String)]) (and (Image? item) item)) content)]))
   (match/values
    (split-at-right (current-history) 2)
-   [(history (list (struct* Msg ([role "user"] [content (app extract-paste-text paste)] [images images])) assistant))
+   [(history (list (struct* Msg ([role "user"] [content (and (app extract-paste paste) (app extract-imgs images))])) assistant))
     #:when (or paste (not (null? images)))
     (when paste
       (current-paste-text (list paste)))

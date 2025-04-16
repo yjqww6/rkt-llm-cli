@@ -8,27 +8,35 @@
 
 (define-type Role (U "system" "user" "assistant" "tool"))
 (struct ToolCall ([name : String] [arguments : String] [id : String]) #:prefab)
-(struct Msg ([role : Role] [content : String] [images : (Listof Bytes)] [tool-calls : (Listof ToolCall)] [tool-call-id : (Option String)]) #:prefab)
+(struct Image ([data : Bytes]) #:prefab)
+(struct Msg ([role : Role]
+             [content : (U String (Listof (U String Image)))]
+             [tool-calls : (Listof ToolCall)] [tool-call-id : (Option String)]) #:prefab)
 
 (define (merge-message [a : Msg] [b : Msg])
   (match* (a b)
-    [((Msg a b c d x) (Msg e f g h y))
-     (Msg a (string-append b f) (append c g) (append d h) (or x y))]))
+    [((Msg a b c d) (Msg e f g h))
+     (Msg a
+          (if (string? b)
+              (if (string? f) (string-append b f) (cons b f))
+              (if (string? f) (append b (list f)) (append b f)))
+          (append c g)
+          (or d h))]))
 
 (define (make-user [prompt : String])
-  (Msg "user" prompt '() '() #f))
+  (Msg "user" prompt '() #f))
 
 (define (make-system [prompt : String])
-  (Msg "system" prompt '() '() #f))
+  (Msg "system" prompt '() #f))
 
 (define (make-assistant [content : String])
-  (Msg "assistant" content '() '() #f))
+  (Msg "assistant" content '() #f))
 
 (define (make-tool [resp : String] [id : (Option String)])
-  (Msg "tool" resp '() '() id))
+  (Msg "tool" resp '() id))
 
 (define (make-msg [role : Role] [content : String])
-  (Msg role content '() '() #f))
+  (Msg role content '() #f))
 
 (define-type History (Listof Msg))
 

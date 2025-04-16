@@ -10,6 +10,7 @@
   (match/values
    (split-at-right messages 1)
    [(h (list (struct* Msg ([role "assistant"] [content prefill]))))
+    (assert (string? prefill))
     (values h prefill)]
    [(_ _)
     (values messages #f)]))
@@ -21,6 +22,8 @@
     [(list* (struct* Msg ([role "system"] [content system]))
             (and (struct* Msg ([role "user"] [content content])) user)
             rest)
+     (assert (string? system))
+     (assert (string? content))
      (cons (struct-copy Msg user [content (join system content)])
            rest)]
     [(cons (struct* Msg ([role "system"])) _)
@@ -32,6 +35,7 @@
   (define s (open-output-string))
   (for ([msg (in-list his)])
     (match-define (struct* Msg ([role role] [content content])) msg)
+    (assert (string? content))
     (write-string (format "<|im_start|>~a\n" role) s)
     (write-string content s)
     (write-string "<|im_end|>\n" s))
@@ -45,6 +49,7 @@
   (define s (open-output-string))
   (for ([msg (in-list (inject-system-to-user h))])
     (match-define (struct* Msg ([role role] [content content])) msg)
+    (assert (string? content))
     (define mapped-role (if (string=? role "assistant") "model" role))
     (write-string (format "<start_of_turn>~a\n" mapped-role) s)
     (write-string content s)
@@ -70,10 +75,12 @@
         [i (in-naturals 1)])
     (match msg
       [(struct* Msg ([role "system"] [content content]))
+       (assert (string? content))
        (put "[SYSTEM_PROMPT]")
        (put content)
        (put "[/SYSTEM_PROMPT]")]
       [(struct* Msg ([role "user"] [content content]))
+       (assert (string? content))
        (when (= i len)
          (define tools (Options-tools o))
          (unless (null? tools)
@@ -84,11 +91,13 @@
        (put content)
        (put "[/INST]")]
       [(struct* Msg ([role "assistant"] [content content] [tool-calls tool-calls]))
+       (assert (string? content))
        (put (string-trim content #:left? #f))
        (unless (null? tool-calls)
          (put "[TOOL_CALLS]")
          (put (jsexpr->string (map tool-call->jsexpr tool-calls))))]
       [(struct* Msg ([role "tool"] [content content] [tool-call-id (? string? tool-call-id)]))
+       (assert (string? content))
        (put "[TOOL_RESULTS]")
        (put tool-call-id)
        (put "[TOOL_CONTENT]")
@@ -103,7 +112,7 @@
   (for/list ([m (in-list msgs)]
              [i (in-naturals 1)])
     (match m
-      [(struct* Msg ([role "assistant"] [content content]))
+      [(struct* Msg ([role "assistant"] [content (? string? content)]))
        #:when (< i end)
        #:when (string-contains? content sep)
        (define new-content 

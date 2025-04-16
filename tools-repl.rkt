@@ -47,7 +47,7 @@
      #:when (not (null? tcs))
      (calling tcs)]
     [(list _ ... (struct* Msg ([role "assistant"]
-                               [content (app (current-tool-parser) tcs)])))
+                               [content (and (? string?) (app (current-tool-parser) tcs))])))
      #:when (not (null? tcs))
      (calling tcs)]
     [else (void)]))
@@ -75,7 +75,9 @@
   (: s (Option String))
   (define-values (s r)
     (match h
-      [(cons (struct* Msg ([role "system"] [content content])) r) (values content r)]
+      [(cons (struct* Msg ([role "system"] [content content])) r)
+       (assert (string? content))
+       (values content r)]
       [_ (values #f h)]))
   (cond
     [(f s) => (λ (sys) (cons (make-system sys) r))]
@@ -108,7 +110,7 @@
 (define (with-mistral-tools [repl : (-> Void)])
   (define (post [m : Msg])
     (match m
-      [(struct* Msg ([role "assistant"] [content (app parse-mistral-toolcall tcs)]))
+      [(struct* Msg ([role "assistant"] [content (and (? string?) (app parse-mistral-toolcall tcs))]))
        #:when (not (null? tcs))
        (struct-copy Msg m
                     [content ""]
