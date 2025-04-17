@@ -132,7 +132,7 @@
 (define current-paste-text (make-parameter (ann '() (Listof String))))
 (define current-paste-image (make-parameter (ann '() (Listof Image))))
 (define current-output-prefix (make-parameter (ann #f (Option String))))
-(define (repl-chat [prompt : (U String 'redo 'continue)])
+(define (repl-chat [prompt : (U String 'redo 'continue (Listof (U String Image)))])
   (call-with-continuation-prompt
    (λ ()  
      (cond
@@ -141,15 +141,25 @@
         (define texts (current-paste-text))
         (define images (current-paste-image))
         (define prefix (current-output-prefix))
-        (define content (if (not (null? texts))
-                            (string-append "```\n"
-                                           (string-join texts "\n")
-                                           "\n```\n"
-                                           prompt)
-                            prompt))
-        (define user (Msg "user" (if (null? images)
-                                     content
-                                     (append images (list content))) '() #f))
+        (define pasted-text
+          (if (null? texts) #f
+              (string-join texts "\n" #:before-first "```\n" #:after-last "\n```\n")))
+        (define user
+          (cond
+            [(string? prompt)
+             (define content (if pasted-text
+                                 (string-append pasted-text prompt)
+                                 prompt))
+             (Msg "user" (if (null? images)
+                             content
+                             (append images (list content))) '() #f)]
+            [else
+             (Msg "user"
+                  (append images
+                          (if pasted-text (list pasted-text) '())
+                          prompt)
+                  '()
+                  #f)]))
         (if prefix
             (chat (cons user prefix))
             (chat user))
