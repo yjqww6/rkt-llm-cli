@@ -129,9 +129,9 @@
                        (make-default-completion-interactive-chatter (new-completer #:type type) tpl)
                        (make-default-interactive-chatter (new-chatter #:type type)))))
 
-(define current-paste-text (make-parameter (ann '() (Listof String))))
-(define current-paste-image (make-parameter (ann '() (Listof Image))))
-(define current-output-prefix (make-parameter (ann #f (Option String))))
+(define-parameter current-paste-text '() : (Listof String))
+(define-parameter current-paste-image '() : (Listof Image))
+(define-parameter current-output-prefix #f : (Option String))
 (define (repl-chat [prompt : (U String 'redo 'continue (Listof (U String Image)))])
   (call-with-continuation-prompt
    (λ ()  
@@ -184,12 +184,11 @@
     [else (param (list pasted))]))
 
 (define (default-repl-prompt)
-  (with-handlers* ([exn:fail? (λ (e) ">>>")])
-    (string-append
-     (if (not (null? (current-paste-text))) "text " "")
-     (if (not (null? (current-paste-image))) "img " "")
-     (if (current-output-prefix) "pre " "")
-     ">>>")))
+  (string-append
+   (if (not (null? (current-paste-text))) "text " "")
+   (if (not (null? (current-paste-image))) "img " "")
+   (if (current-output-prefix) "pre " "")
+   ">>>"))
 (define current-repl-prompt (make-parameter default-repl-prompt))
 
 (define (take-last-prompt)

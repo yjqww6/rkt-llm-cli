@@ -94,6 +94,10 @@
 (define (merge-right a b)
   (if (is-null? b) a b))
 
+;; enforcing early shape check
+(define-syntax-parse-rule (define-parameter Name:id Def:expr (~literal :) Type)
+  (define Name (make-parameter (ann Def Type) (λ ([v : Type]) v))))
+
 (begin-for-syntax
   (define-syntax-class Opt-Type #:datum-literals (:)
     (pattern ((~literal Nullable) _)
@@ -119,7 +123,7 @@
        (struct Name ([Id : Type] ...) #:prefab)
        (define (make-Name (~@ K [Id : Type Type.Def]) ...)
          (Name Id ...))
-       (define current-Id (make-parameter (ann Type.Def Type)))
+       (define-parameter current-Id Type.Def : Type)
        ...
        (define (current-Name) : Name
          (Name (current-Id) ...))
@@ -146,8 +150,8 @@
   [model : (Nullable String)]
   [context-window : (Nullable Exact-Positive-Integer)])
 
-(define current-verbose (make-parameter (ann #f Boolean)))
-(define current-network-trace (make-parameter (ann void (-> (U 'send 'recv) (U Bytes String) Void))))
+(define-parameter current-verbose #f : Boolean)
+(define-parameter current-network-trace void : (-> (U 'send 'recv) (U Bytes String) Void))
 
 (define break-prompt-tag : (Prompt-Tagof Void (-> (-> Nothing) Void))
   (make-continuation-prompt-tag))

@@ -5,8 +5,8 @@
          racket/list)
 (provide (all-defined-out))
 
-(define current-system (make-parameter (ann #f (Option String))))
-(define current-history (make-parameter (ann '() History)))
+(define-parameter current-system #f : (Option String))
+(define-parameter current-history '() : History)
 
 (define (make-history [history : History] [new-msgs : (Listof Msg)])
   (define h (if (null? new-msgs) history (append history new-msgs)))
@@ -101,7 +101,7 @@
              [else (loop (add1 i))])))]
       [else (up s)])))
 
-(define current-cot-suffix (make-parameter "</think>"))
+(define-parameter current-cot-suffix "</think>" : String)
 
 (define (hide-cot-streaming)
   (define checker (make-suffixes-checker (list (current-cot-suffix))))
