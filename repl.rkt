@@ -18,7 +18,7 @@
 (define (upload-image)
   (define p (get-file))
   (when p
-    (current-paste-image (Image (file->bytes p)))))
+    (do-paste (Image (file->bytes p)) #t)))
 
 (define (bitmap->bytes bm)
   (define b (open-output-bytes))
@@ -41,9 +41,13 @@
        (define t (init))
        (send c set-clipboard-string s t)])))
 
-(define (paste [append? #f])
+(define (paste [append? #t])
   (define pasted (clip))
   (do-paste pasted append?))
+
+(define (clear-paste)
+  (current-paste-text '())
+  (current-paste-image '()))
 
 (define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
   (define tools (flatten ts))

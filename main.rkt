@@ -185,8 +185,8 @@
 
 (define (default-repl-prompt)
   (string-append
-   (if (not (null? (current-paste-text))) "text " "")
-   (if (not (null? (current-paste-image))) "img " "")
+   (string-join (map (λ (x) "img ") (current-paste-image)) "")
+   (string-join (map (λ (x) "text ") (current-paste-text)) "")
    (if (current-output-prefix) "pre " "")
    ">>>"))
 (define current-repl-prompt (make-parameter default-repl-prompt))
