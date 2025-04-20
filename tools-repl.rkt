@@ -66,10 +66,11 @@
        ((Tool-callback (car tools)) arg))]
     [else (error 'default-tool-callback "~a not found" name)]))
 
-(define (tool->user [msg : Msg])
-  (if (string=? (Msg-role msg) "tool")
-      (struct-copy Msg msg [role (ann "user" Role)])
-      msg))
+(define ((tool->user [maker : (-> String String)]) [msg : Msg])
+  (match msg
+    [(struct* Msg ([role "tool"] [content (? string? content)]))
+     (struct-copy Msg msg [role (ann "user" Role)] [content (maker content)])]
+    [else msg]))
 
 (define (map-system [f : (-> (Option String) (Option String))] [h : History]) : History
   (: s (Option String))
@@ -87,13 +88,7 @@
   (define old-callback (current-tool-callback))
   (define (system-rewrite [s : (Option String)]) : (Option String)
     (make-nous-system-template (map Tool-desc (current-tools)) s))
-  (parameterize ([current-tool-callback (λ ([name : String] [arg : String])
-                                          (define r (old-callback name arg))
-                                          (cond
-                                            [(not r) #f]
-                                            [else
-                                             (make-nous-response r)]))]
-                 [current-tool-parser parse-nous-toolcall]
+  (parameterize ([current-tool-parser parse-nous-toolcall]
                  [current-interactive-hooks (cons
                                              (ann
                                               (λ (i o)
@@ -102,7 +97,7 @@
                                              (current-interactive-hooks))]
                  [current-messages-preprocessors (cons
                                                   (compose1
-                                                   (λ ([s : History]) (map tool->user s))
+                                                   (λ ([s : History]) (map (tool->user make-nous-response) s))
                                                    (λ ([s : History]) (map-system system-rewrite s)))
                                                   (current-messages-preprocessors))])
     (repl)))
