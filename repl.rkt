@@ -3,11 +3,8 @@
          racket/file
          racket/lazy-require
          racket/list
-         racket/match
          racket/port
-         racket/string
          racket/system
-         racket/control
          "main.rkt"
          "tools.rkt"
          "tools-repl.rkt")
@@ -51,17 +48,7 @@
 
 (define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
   (define tools (flatten ts))
-  (parameterize ([current-tools tools]
-                 [current-tool-callback default-tool-callback]
-                 [current-repl-prompt tool-repl-prompt])
-    (reset
-     (when manual
-       (shift k (cond [(eq? manual 'mistral) (with-mistral-tools k)]
-                      [else (with-nous-tools k)])))
-     (when auto?
-       (shift k (parameterize ([current-chat (make-auto-execute-chat (current-chat))])
-                  (k))))
-     (repl-loop))))
+  (tools-repl-loop #:auto auto? #:manual manual tools))
 
 (module+ main
   (require expeditor (submod expeditor configure)

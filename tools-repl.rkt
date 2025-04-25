@@ -5,9 +5,7 @@
          "private/main.rkt"
          racket/match
          racket/list)
-(provide current-tool-callback default-tool-callback
-         execute tool-repl-prompt make-auto-execute-chat
-         with-nous-tools with-mistral-tools)
+(provide execute tools-repl-loop)
 
 (define-type ToolCallback (-> String String (Option String)))
 (define current-tool-callback
@@ -116,3 +114,33 @@
       [_ m]))
   (parameterize ([current-messages-postprocessors (cons post (current-messages-postprocessors))])
     (repl)))
+
+(module control racket/base
+  (require racket/control)
+  (provide (all-defined-out))
+  (define (call/reset proc)
+    (reset (proc)))
+  (define (call/shift proc)
+    (shift k (proc k))))
+
+(require/typed/provide
+ 'control
+ [call/reset (-> (-> Void) Void)]
+ [call/shift (-> (-> (-> Void) Void) (Values))])
+
+(define (tools-repl-loop #:auto [auto? #t] #:manual [manual #f] [tools : (Listof Tool)])
+  (parameterize ([current-tools tools]
+                 [current-tool-callback default-tool-callback]
+                 [current-repl-prompt tool-repl-prompt])
+    (call/reset
+     (λ ()
+       (when manual
+         (call/shift
+          (λ (k) (cond [(eq? manual 'mistral) (with-mistral-tools k)]
+                       [else (with-nous-tools k)]))))
+       (when auto?
+         (call/shift
+          (λ (k) (parameterize ([current-chat (make-auto-execute-chat (current-chat))])
+                   (k)))))
+       (repl-loop)
+       (void)))))
