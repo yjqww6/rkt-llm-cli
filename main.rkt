@@ -221,15 +221,6 @@
 (define current-repl-loop (make-parameter (ann (λ () (error 'repl-loop)) (-> Any))))
 (define (repl-loop) ((current-repl-loop)))
 
-(define (use-prefix-by-grammar!)
-  (: hook InteractiveHook)
-  (define (hook h o)
-    (if (interactive-is-user&prefill? h)
-        (values (car h)
-                (struct-copy Options o [grammar (format "root ::= ~v .*" (cdr h))]))
-        (values h o)))
-  (current-interactive-hooks (cons hook (current-interactive-hooks))))
-
 (define (trace-network! [only : (U 'send 'recv #f) #f] [output : Output-Port (current-output-port)])
   (current-network-trace
    (lambda (type data)
@@ -254,3 +245,16 @@
 
 (define (last-response)
   (Msg-content (last (current-history))))
+
+(define (no-think)
+  (define old-prompt (current-repl-prompt))
+  (: hook InteractiveHook)
+  (define (hook h o)
+    (values
+     (cond
+       [(Msg? h) (cons (merge-message h (make-user " /no_think")) "<think>\n\n</think>\n\n")]
+       [else h])
+     o))
+  (parameterize ([current-interactive-hooks (cons hook (current-interactive-hooks))]
+                 [current-repl-prompt (λ () (string-append "NOTHINK " (old-prompt)))])
+    (repl-loop)))

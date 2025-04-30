@@ -42,10 +42,9 @@
        (current-history (append history (list (car msg) new-resp)))
        new-resp]
       [(interactive-is-user? msg)
-       (define user (if (string? msg) (make-user msg) msg))
-       (define resp (chatter (make-history history (list user))
+       (define resp (chatter (make-history history (list msg))
                              streaming options))
-       (current-history (append history (list user resp)))
+       (current-history (append history (list msg resp)))
        resp]
       [else
        (define resp (chatter (make-history history (cdr msg))

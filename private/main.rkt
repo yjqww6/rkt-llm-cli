@@ -43,7 +43,7 @@
 (struct Tool ([name : String] [desc : JSExpr] [callback : (-> String (Option String))]))
 
 (define-type Chatter (History (-> String Void) Options -> Msg))
-(define-type Interactive (U String Msg (Pairof Msg String) (Pairof 'result (Listof Msg)) 'redo 'continue))
+(define-type Interactive (U Msg (Pairof Msg String) (Pairof 'result (Listof Msg)) 'redo 'continue))
 (define-type InteractiveChatter (Interactive (-> String Void) Options -> Msg))
 (define-type Completer (String (-> String Void) Options -> String))
 (define-type ChatTemplate (History Options -> String))
@@ -171,7 +171,7 @@
 (: interactive-is-user? (-> Interactive Boolean : (U Msg String (Pairof Msg String))))
 (define (interactive-is-user? s)
   (cond
-    [(or (Msg? s) (string? s)) #t]
+    [(Msg? s) #t]
     [(and (pair? s) (Msg? (car s))) #t]
     [else #f]))
 
