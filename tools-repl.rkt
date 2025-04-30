@@ -13,8 +13,8 @@
 (define current-tool-parser
   (make-parameter (ann (λ (s) '()) (-> String (Listof ToolCall)))))
 
-(define (tool-repl-prompt)
-  (string-append "TOOL:" (default-repl-prompt)))
+(define ((tool-repl-prompt [old-prompt : (-> String) (current-repl-prompt)]))
+  (string-append "TOOL:" (old-prompt)))
 
 (define (execute) : Void
   (define (calling [tcs : (Listof ToolCall)])
@@ -131,7 +131,7 @@
 (define (tools-repl-loop #:auto [auto? #t] #:manual [manual #f] [tools : (Listof Tool)])
   (parameterize ([current-tools tools]
                  [current-tool-callback default-tool-callback]
-                 [current-repl-prompt tool-repl-prompt])
+                 [current-repl-prompt (tool-repl-prompt)])
     (call/reset
      (λ ()
        (when manual
