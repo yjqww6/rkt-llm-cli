@@ -191,6 +191,10 @@
    ">>>"))
 (define current-repl-prompt (make-parameter default-repl-prompt))
 
+(define (make-prefix-repl-prompt [prefix : String])
+  (define old (current-repl-prompt))
+  (λ () (string-append prefix " " (old))))
+
 (define (take-last-prompt)
   (define (extract-paste-text [content : String])
     (match (regexp-match #px"^```\n(.*)\n```(.*)$" content)
@@ -247,7 +251,6 @@
   (Msg-content (last (current-history))))
 
 (define (no-think)
-  (define old-prompt (current-repl-prompt))
   (: hook InteractiveHook)
   (define (hook h o)
     (values
@@ -256,5 +259,5 @@
        [else h])
      o))
   (parameterize ([current-interactive-hooks (cons hook (current-interactive-hooks))]
-                 [current-repl-prompt (λ () (string-append "NOTHINK " (old-prompt)))])
+                 [current-repl-prompt (make-prefix-repl-prompt "NOTHK")])
     (repl-loop)))
