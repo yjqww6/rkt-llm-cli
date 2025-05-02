@@ -16,17 +16,18 @@
       h))
 
 (define (make-interactive-chat [chatter : Chatter]) : InteractiveChatter
+  (define (prefix-chatter [prefix : (Option String)]) : Chatter
+    (if (not prefix)
+        chatter
+        (λ (h s o)
+          (s prefix)
+          (define prefill (make-assistant prefix))
+          (define resp (chatter (append h (list prefill)) s o))
+          (merge-message prefill resp))))
   (λ ([msg : Interactive] streaming options)
     (define history (current-history))
     (cond
-      [(eq? msg 'redo)
-       (match/values
-        (split-at-right history 1)
-        [(history (list (struct* Msg ([role "assistant"]))))
-         (define resp (chatter (make-history history '()) streaming options))
-         (current-history (append history (list resp)))
-         resp])]
-      [(eq? msg 'continue)
+      [(Continue? msg)
        (match/values
         (split-at-right history 1)
         [(past (list (and assist (struct* Msg ([role "assistant"])))))
@@ -34,23 +35,26 @@
          (define new-resp (merge-message assist resp))
          (current-history (append past (list new-resp)))
          new-resp])]
-      [(interactive-is-user&prefill? msg)
-       (define prefill (make-assistant (cdr msg)))
-       (streaming (cdr msg))
-       (define resp (chatter (make-history history (list (car msg) prefill)) streaming options))
-       (define new-resp (merge-message prefill resp))
-       (current-history (append history (list (car msg) new-resp)))
-       new-resp]
-      [(interactive-is-user? msg)
-       (define resp (chatter (make-history history (list msg))
-                             streaming options))
-       (current-history (append history (list msg resp)))
-       resp]
       [else
-       (define resp (chatter (make-history history (cdr msg))
-                             streaming options))
-       (current-history (append history (cdr msg) (list resp)))
-       resp])))
+       (define pchatter (prefix-chatter (InteractiveCommon-prefix msg)))
+       (cond
+         [(Redo? msg)
+          (match/values
+           (split-at-right history 1)
+           [(history (list (struct* Msg ([role "assistant"]))))
+            (define resp (pchatter (make-history history '()) streaming options))
+            (current-history (append history (list resp)))
+            resp])]
+         [(ToolResult? msg)
+          (define resp (pchatter (make-history history (ToolResult-result msg))
+                                 streaming options))
+          (current-history (append history (ToolResult-result msg) (list resp)))
+          resp]
+         [(User? msg)
+          (define resp (pchatter (make-history history (list (User-msg msg)))
+                                 streaming options))
+          (current-history (append history (list (User-msg msg) resp)))
+          resp])])))
 
 (define (make-chat-by-template [completer : Completer] [chat-template : ChatTemplate]) : Chatter
   (λ (history streaming options)

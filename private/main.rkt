@@ -42,8 +42,14 @@
 
 (struct Tool ([name : String] [desc : JSExpr] [callback : (-> String (Option String))]))
 
+(struct InteractiveCommon ([prefix : (Option String)]))
+(struct User InteractiveCommon ([msg : Msg]))
+(struct ToolResult InteractiveCommon ([result : (Listof Msg)]))
+(struct Redo InteractiveCommon ())
+(struct Continue ())
+
 (define-type Chatter (History (-> String Void) Options -> Msg))
-(define-type Interactive (U Msg (Pairof Msg String) (Pairof 'result (Listof Msg)) 'redo 'continue))
+(define-type Interactive (U User ToolResult Redo Continue))
 (define-type InteractiveChatter (Interactive (-> String Void) Options -> Msg))
 (define-type Completer (String (-> String Void) Options -> String))
 (define-type ChatTemplate (History Options -> String))
@@ -167,31 +173,6 @@
                          (abort-current-continuation break-prompt-tag cc)))
                       (on-abort))])
     (proc)))
-
-(: interactive-is-user? (-> Interactive Boolean : (U Msg String (Pairof Msg String))))
-(define (interactive-is-user? s)
-  (cond
-    [(Msg? s) #t]
-    [(and (pair? s) (Msg? (car s))) #t]
-    [else #f]))
-
-(: interactive-is-user&prefill? (-> Interactive Boolean : (Pairof Msg String)))
-(define (interactive-is-user&prefill? s)
-  (cond
-    [(and (pair? s) (Msg? (car s))) #t]
-    [else #f]))
-
-(: interactive-is-tool? (-> Interactive Boolean : (Pairof 'result (Listof Msg))))
-(define (interactive-is-tool? s)
-  (cond
-    [(and (pair? s) (eq? 'result (car s))) #t]
-    [else #f]))
-
-(: interactive-is-command? (-> Interactive Boolean : (U 'redo 'continue)))
-(define (interactive-is-command? s)
-  (cond
-    [(or (eq? s 'redo) (eq? s 'continue)) #t]
-    [else #f]))
 
 (define (call/color [color : (U 'blue 'red)] [thunk : (-> Void)]
                     #:output [output : Output-Port (current-output-port)]

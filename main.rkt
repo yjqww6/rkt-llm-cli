@@ -136,7 +136,12 @@
   (call-with-continuation-prompt
    (λ ()  
      (cond
-       [(or (eq? prompt 'redo) (eq? prompt 'continue)) (chat prompt)]
+       [(eq? prompt 'redo)
+        (define prefix (current-output-prefix))
+        (chat (Redo prefix))
+        (current-output-prefix #f)]
+       [(eq? prompt 'continue)
+        (chat (Continue))]
        [else
         (define texts (current-paste-text))
         (define images (current-paste-image))
@@ -160,9 +165,7 @@
                           prompt)
                   '()
                   #f)]))
-        (if prefix
-            (chat (cons user prefix))
-            (chat user))
+        (chat (User prefix user))
         (current-paste-text '())
         (current-paste-image '())
         (current-output-prefix #f)]))
@@ -253,9 +256,12 @@
 (define (no-think)
   (: hook InteractiveHook)
   (define (hook h o)
+    (define prefix "<think>\n\n</think>\n\n")
     (values
      (cond
-       [(Msg? h) (cons (merge-message h (make-user " /no_think")) "<think>\n\n</think>\n\n")]
+       [(User? h) (User "<think>\n\n</think>\n\n" (merge-message (User-msg h) (make-user " /no_think")))]
+       [(ToolResult? h) (struct-copy ToolResult h [prefix #:parent InteractiveCommon prefix])]
+       [(Redo? h) (struct-copy Redo h [prefix #:parent InteractiveCommon prefix])]
        [else h])
      o))
   (parameterize ([current-interactive-hooks (cons hook (current-interactive-hooks))]

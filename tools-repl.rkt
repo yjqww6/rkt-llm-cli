@@ -36,7 +36,7 @@
         (map (λ ([rsp : String] [tc : ToolCall])
                (make-tool rsp (ToolCall-id tc)))
              tool-resps tcs))
-      ((current-chat) (cons 'result tool-msgs))))
+      ((current-chat) (ToolResult #f tool-msgs))))
   (match (current-history)
     [(list _ ... (struct* Msg ([role "assistant"] [tool-calls tcs])))
      #:when (not (null? tcs))
