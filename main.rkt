@@ -253,17 +253,27 @@
 (define (last-response)
   (Msg-content (last (current-history))))
 
-(define (no-think)
-  (: hook InteractiveHook)
-  (define (hook h o)
-    (define prefix "<think>\n\n</think>\n\n")
+(define (with-output-prefix [prefix : String]) : InteractiveHook
+  (λ (i o)
     (values
      (cond
-       [(User? h) (User "<think>\n\n</think>\n\n" (merge-message (User-msg h) (make-user " /no_think")))]
-       [(ToolResult? h) (struct-copy ToolResult h [prefix #:parent InteractiveCommon prefix])]
-       [(Redo? h) (struct-copy Redo h [prefix #:parent InteractiveCommon prefix])]
-       [else h])
-     o))
-  (parameterize ([current-interactive-hooks (cons hook (current-interactive-hooks))]
+       [(User? i) (struct-copy User i [prefix #:parent InteractiveCommon prefix])]
+       [(ToolResult? i) (struct-copy ToolResult i [prefix #:parent InteractiveCommon prefix])]
+       [(Redo? i) (struct-copy Redo i [prefix #:parent InteractiveCommon prefix])]
+       [else i])
+     o)))
+
+(define (with-user [f : (-> Msg Msg)]) : InteractiveHook
+  (λ (i o)
+    (values
+     (cond
+       [(User? i) (struct-copy User i [msg (f (User-msg i))])]
+       [else i])
+     o)))
+
+(define (no-think)
+  (parameterize ([current-interactive-hooks (list* (with-output-prefix "<think>\n\n</think>\n\n")
+                                                   (with-user (λ (m) (merge-message m (make-user " /no_think"))))
+                                                   (current-interactive-hooks))]
                  [current-repl-prompt (make-prefix-repl-prompt "NOTHK")])
     (repl-loop)))
