@@ -12,7 +12,8 @@
          (all-from-out "private/main.rkt")
          (all-from-out "private/chat.rkt"))
 
-(define current-chatter (make-parameter (ann (λ (h s o) (error 'chatter "no endpoint")) InteractiveChatter)))
+(define current-interactive-chatter (make-parameter (ann (λ (h s o) (error 'interactive-chatter "no endpoint")) InteractiveChatter)))
+(define current-chatter (make-parameter (ann (λ (h s o) (error 'chatter "no endpoint")) Chatter)))
 (define current-completer (make-parameter (ann (λ (h s o) (error 'completer "no endpoint")) Completer)))
 (define default-chatter-options (make-parameter (make-Options)))
 (define default-complete-options (make-parameter (make-Options)))
@@ -43,21 +44,15 @@
            (loop (cdr hooks) new-h new-o)])))
     (chatter new-h s new-o)))
 
-(define (make-default-interactive-chatter [chatter : Chatter]) : InteractiveChatter
+(define (make-default-interactive-chatter [chatter : Chatter] [default-opts : (Parameterof Options)]) : InteractiveChatter
   (define new-chatter (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor chatter))))
   (λ (i s o)
-    (new-chatter i s (merge-Options (default-chatter-options) o))))
-
-(define (make-default-completion-interactive-chatter [complete : Completer] [tpl : (U String ChatTemplate)]) : InteractiveChatter
-  (define chat-tpl (if (string? tpl) (chat-template tpl) tpl))
-  (define new-chatter (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor (make-chat-by-template complete chat-tpl)))))
-  (λ (i s o)
-    (new-chatter i s (merge-Options (default-complete-options) o))))
+    (new-chatter i s (merge-Options (default-opts) o))))
 
 (define-type Chat (-> Interactive Void))
 (define default-chat : Chat
   (λ (s)
-    (define new-chatter (with-interactive-hooks (current-chatter)))
+    (define new-chatter (with-interactive-hooks (current-interactive-chatter)))
     (new-chatter s ((current-streaming)) (current-Options))
     (newline)))
 
@@ -125,9 +120,13 @@
   (default-complete-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? #t))
   (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? (and tpl #t)))
   (current-completer (new-completer #:type type))
-  (current-chatter (if tpl
-                       (make-default-completion-interactive-chatter (new-completer #:type type) tpl)
-                       (make-default-interactive-chatter (new-chatter #:type type)))))
+  (current-chatter (new-chatter #:type type))
+  (current-interactive-chatter
+   (if tpl
+       (make-default-interactive-chatter
+        (make-chat-by-template (λ (h s o) ((current-completer) h s o)) (if (string? tpl) (chat-template tpl) tpl))
+        default-complete-options)
+       (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))))
 
 (define-parameter current-paste-text '() : (Listof String))
 (define-parameter current-paste-image '() : (Listof Image))
