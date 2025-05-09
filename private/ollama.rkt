@@ -29,7 +29,7 @@
         (filter-map
          (λ ([item : (U String Image)])
            (if (Image? item)
-               (bytes->string/latin-1 (base64-encode (Image-data item)))
+               (bytes->string/latin-1 (base64-encode (Image-data item) #""))
                #f))
          content)))))
 

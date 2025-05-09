@@ -13,7 +13,7 @@
 
 (require/typed/provide
  net/base64
- [base64-encode (-> Bytes Bytes)])
+ [base64-encode (-> Bytes Bytes Bytes)])
 
 (require/typed/provide
  net/url

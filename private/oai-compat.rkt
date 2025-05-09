@@ -31,7 +31,7 @@
                 (hasheq 'type "text" 'text item)]
                [else
                 (define d (string-append "data:image/jpeg;base64,"
-                                         (bytes->string/latin-1 (base64-encode (Image-data item)))))
+                                         (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
                 (hasheq 'type "image_url" 'image_url (hasheq 'url d))]))
            content)])))
 
