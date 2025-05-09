@@ -91,10 +91,14 @@
     (match* (j k*)
       [(_ '()) j]
       [((? list? j) (cons (? integer? k) k*))
-       (loop (list-ref j k) k*)]
+       (if (> (length j) k)
+           (loop (list-ref j k) k*)
+           'null)]
       [((? hash? j) (cons (? symbol? k) k*))
-       (loop (hash-ref j k) k*)]
-      [(_ _) #f])))
+       (if (hash-has-key? j k)
+           (loop (hash-ref j k) k*)
+           'null)]
+      [(_ _) 'null])))
 
 (: merge-right (All (a) (Nullable a) (Nullable a) -> (Nullable a)))
 (define (merge-right a b)
