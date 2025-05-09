@@ -276,3 +276,19 @@
                                                    (current-interactive-hooks))]
                  [current-repl-prompt (make-prefix-repl-prompt "NOTHK")])
     (repl-loop)))
+
+(define (reroute-image [opt : Options])
+  ;; oai-compat only for now
+  (define old-chatter (current-chatter))
+  (: new-chatter Chatter)
+  (define (new-chatter h s o)
+    (old-chatter h s
+                 (if (for/or : Boolean ([m (in-list h)])
+                       (and (not (string? (Msg-content m)))
+                            (for/or : Boolean ([p (in-list (Msg-content m))])
+                              (not (string? p)))))
+                     (merge-Options o opt)
+                     o)))
+  (parameterize ([current-chatter new-chatter]
+                 [current-repl-prompt (make-prefix-repl-prompt "REROUTE")])
+    (repl-loop)))
