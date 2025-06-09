@@ -73,7 +73,9 @@
     [(list old ... (and u (struct* Msg ([role "user"] [content c]))) _)
      (define new-content (edit c))
      (when new-content
-       (current-history
-        (parameterize ([current-history old])
-          (repl-chat new-content)
-          (current-history))))]))
+       (define new-history
+         (parameterize ([current-history old])
+           (repl-chat new-content)
+           (current-history)))
+       (unless (eq? new-history old)
+         (current-history new-history)))]))
