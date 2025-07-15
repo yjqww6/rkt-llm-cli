@@ -7,7 +7,7 @@
 (provide chat completion)
 
 (define (build-ollama-message [message : Msg]) : (Immutable-HashTable Symbol JSExpr)
-  (match-define (Msg role content tool-calls _) message)
+  (match-define (Msg role content tool-calls _ _) message)
   (hash-build
    'role role
    'tool_calls
@@ -108,7 +108,7 @@
           (loop)])))
    void)
   (close-input-port body)
-  (Msg "assistant" (get-output-string output-content) (reverse tools) #f))
+  (Msg "assistant" (get-output-string output-content) (reverse tools) #f #f))
 
 (define (build-completion-body [prompt : String] [options : Options])
   (jsexpr->bytes

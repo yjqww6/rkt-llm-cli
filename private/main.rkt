@@ -11,32 +11,38 @@
 (struct Image ([data : Bytes]) #:prefab)
 (struct Msg ([role : Role]
              [content : (U String (Listof (U String Image)))]
-             [tool-calls : (Listof ToolCall)] [tool-call-id : (Option String)]) #:prefab)
+             [tool-calls : (Listof ToolCall)]
+             [tool-call-id : (Option String)]
+             [reasoning-content : (Option String)]) #:prefab)
 
 (define (merge-message [a : Msg] [b : Msg])
   (match* (a b)
-    [((Msg a b c d) (Msg e f g h))
-     (Msg a
-          (if (string? b)
-              (if (string? f) (string-append b f) (cons b f))
-              (if (string? f) (append b (list f)) (append b f)))
-          (append c g)
-          (or d h))]))
+    [((Msg role-a content-a tc-a id-a r-a) (Msg role-b content-b tc-b id-b r-b))
+     (Msg role-a
+          (if (string? content-a)
+              (if (string? content-b) (string-append content-a content-b) (cons content-a content-b))
+              (if (string? content-b) (append content-a (list content-b)) (append content-a content-b)))
+          (append tc-a tc-b)
+          (or id-a id-b)
+          (cond
+            [(not r-a) r-b]
+            [(not r-b) r-a]
+            [else (string-append r-a r-b)]))]))
 
-(define (make-user [prompt : String])
-  (Msg "user" prompt '() #f))
+(define (make-user [prompt : (U String (Listof (U String Image)))])
+  (Msg "user" prompt '() #f #f))
 
 (define (make-system [prompt : String])
-  (Msg "system" prompt '() #f))
+  (Msg "system" prompt '() #f #f))
 
 (define (make-assistant [content : String])
-  (Msg "assistant" content '() #f))
+  (Msg "assistant" content '() #f #f))
 
 (define (make-tool [resp : String] [id : (Option String)])
-  (Msg "tool" resp '() id))
+  (Msg "tool" resp '() id #f))
 
 (define (make-msg [role : Role] [content : String])
-  (Msg role content '() #f))
+  (Msg role content '() #f #f))
 
 (define-type History (Listof Msg))
 

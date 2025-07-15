@@ -7,7 +7,7 @@
 (provide chat completion)
 
 (define (build-oai-compat-message [message : Msg]) : (Immutable-HashTable Symbol JSExpr)
-  (match-define (Msg role content tool-calls tool-call-id) message)
+  (match-define (Msg role content tool-calls tool-call-id reasoning-content) message)
   (hash-build
    'role role
    'tool_calls
@@ -33,7 +33,8 @@
                 (define d (string-append "data:image/jpeg;base64,"
                                          (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
                 (hasheq 'type "image_url" 'image_url (hasheq 'url d))]))
-           content)])))
+           content)])
+   'reasoning_content (false->nullable reasoning-content)))
 
 (define (build-body-common [options : Options])
   (hash-build
@@ -92,7 +93,8 @@
   (log-verbose j)
   (match (json-ref j 'choices 0 'message)
     [(hash* ['content content #:default ""]
-            ['tool_calls (? list? tool-calls) #:default '()])
+            ['tool_calls (? list? tool-calls) #:default '()]
+            ['reasoning_content reasoning-content #:default #f])
      (define str-content
        (match content
          [(? string?) content]
@@ -107,7 +109,8 @@
                                        ['arguments (? string? arguments)])])
                     (ToolCall name arguments id)]))
                tool-calls)
-          #f)]))
+          #f
+          (and (string? reasoning-content) reasoning-content))]))
 
 (define (on-event-stream [port : Input-Port] [handler : (-> JSExpr Void)])
   (let loop : Void ()
@@ -125,6 +128,7 @@
 
 (define (handle-event-stream [port : Input-Port] [streaming : (String -> Void)])
   (define whole-content (open-output-string))
+  (define reasoning-content (open-output-string))
   (define streaming-tools : (Mutable-HashTable Integer (Option ToolCall)) (make-hasheqv))
   (define (merge-streaming-tools [a : (Option ToolCall)] [b : ToolCall])
     (match* (a b)
@@ -138,6 +142,10 @@
       [(hash* ['content (? string? content)])
        (write-string content whole-content)
        (streaming content)]
+      [_ (void)])
+    (match delta
+      [(hash* ['reasoning_content (? string? content)])
+       (write-string content reasoning-content)]
       [_ (void)])
     (match delta
       [(hash* ['tool_calls
@@ -162,7 +170,9 @@
        (for/list ([tc (in-hash-values streaming-tools)]
                   #:when tc)
          tc)
-       #f))
+       #f
+       (let ([s (get-output-string reasoning-content)])
+         (if (non-empty-string? s) s #f))))
 
 (define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])
   (define data (build-chat-body msgs opt))

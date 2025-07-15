@@ -154,16 +154,15 @@
              (define content (if pasted-text
                                  (string-append pasted-text prompt)
                                  prompt))
-             (Msg "user" (if (null? images)
-                             content
-                             (append images (list content))) '() #f)]
+             (make-user
+              (if (null? images)
+                  content
+                  (append images (list content))))]
             [else
-             (Msg "user"
-                  (append images
-                          (if pasted-text (list pasted-text) '())
-                          prompt)
-                  '()
-                  #f)]))
+             (make-user
+              (append images
+                      (if pasted-text (list pasted-text) '())
+                      prompt))]))
         (chat (User prefix user))
         (current-paste-text '())
         (current-paste-image '())
