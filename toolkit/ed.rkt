@@ -1,6 +1,6 @@
 #lang racket/base
 (require racket/match racket/list racket/class racket/gui/base framework "../main.rkt")
-(provide edit input redo/input edit-history input-history)
+(provide edit input redo/input edit-history input-history prev-input)
 
 (define (get-content text)
   (let loop ([s (send text find-first-snip)]
@@ -61,9 +61,12 @@
   (and submitted?
        (get-content t)))
 
+(define prev-input (make-parameter #f))
+
 (define (input [init #f])
   (define content (edit init))
   (when content
+    (prev-input content)
     (repl-chat content)))
 
 (define (redo/input)
