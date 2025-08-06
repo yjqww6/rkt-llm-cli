@@ -86,7 +86,7 @@
           (printf "EVAL\t~a tokens" tg)))]
       [else (void)])))
 
-(define (handle-json-body [port : Input-Port] [streaming : (String -> Void)]) : Msg
+(define (handle-json-body [port : Input-Port] [streaming : Streaming]) : Msg
   (define s (port->bytes port))
   ((current-network-trace) 'recv s)
   (define j (bytes->jsexpr s))
@@ -99,7 +99,9 @@
        (match content
          [(? string?) content]
          ['null ""]))
-     (streaming str-content)
+     (when (string? reasoning-content)
+       (streaming reasoning-content 'think))
+     (streaming str-content 'content)
      (Msg "assistant" str-content
           (map (λ ([tc : JSExpr]) ToolCall
                  (match tc
@@ -126,7 +128,7 @@
        (loop)]
       [else (error 'handle-event-stream "~a" l)])))
 
-(define (handle-event-stream [port : Input-Port] [streaming : (String -> Void)])
+(define (handle-event-stream [port : Input-Port] [streaming : Streaming])
   (define whole-content (open-output-string))
   (define reasoning-content (open-output-string))
   (define streaming-tools : (Mutable-HashTable Integer (Option ToolCall)) (make-hasheqv))
@@ -141,11 +143,12 @@
     (match delta
       [(hash* ['content (? string? content)])
        (write-string content whole-content)
-       (streaming content)]
+       (streaming content 'content)]
       [_ (void)])
     (match delta
       [(hash* ['reasoning_content (? string? content)])
-       (write-string content reasoning-content)]
+       (write-string content reasoning-content)
+       (streaming content 'think)]
       [_ (void)])
     (match delta
       [(hash* ['tool_calls
@@ -174,7 +177,7 @@
        (let ([s (get-output-string reasoning-content)])
          (if (non-empty-string? s) s #f))))
 
-(define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])
+(define (chat [msgs : History] [streaming : Streaming] [opt : Options])
   (define data (build-chat-body msgs opt))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
@@ -195,7 +198,7 @@
   (jsexpr->bytes
    (hash-set (build-body-common options) 'prompt prompt)))
 
-(define (completion [prompt : String] [streaming : (String -> Void)] [opt : Options])
+(define (completion [prompt : String] [streaming : Streaming] [opt : Options])
   (define data (build-completion-body prompt opt))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
@@ -209,7 +212,7 @@
   (define (handle [j : JSExpr])
     (log-verbose j)
     (define text (cast (json-ref j 'choices 0 'text) String))
-    (streaming text)
+    (streaming text 'content)
     (write-string text all-text)
     (void))
   (define all-text (open-output-string))

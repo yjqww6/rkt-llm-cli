@@ -67,7 +67,7 @@
           (printf "EVAL:\t~a tokens, ~a tokens/s" tg (/ tg (/ tgt 1e9)))))]
       [_ (void)])))
 
-(define (chat [msgs : History] [streaming : (String -> Void)] [opt : Options])
+(define (chat [msgs : History] [streaming : Streaming] [opt : Options])
   (define data (build-chat-body msgs opt))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
@@ -102,7 +102,7 @@
           (match j
             [(hash* ['message (hash* ['content (? string? content)])])
              (write-string content output-content)
-             (streaming content)]
+             (streaming content 'content)]
             [(hash* ['error err])
              (error 'chat "~a" err)])
           (loop)])))
@@ -116,7 +116,7 @@
              'prompt prompt
              'raw #t)))
 
-(define (completion [prompt : String] [streaming : (String -> Void)] [opt : Options])
+(define (completion [prompt : String] [streaming : Streaming] [opt : Options])
   (define data (build-completion-body prompt opt))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
@@ -139,7 +139,7 @@
           (match j
             [(hash* ['response (? string? content)])
              (write-string content output-content)
-             (streaming content)]
+             (streaming content 'content)]
             [(hash* ['error err])
              (error 'chat "~a" err)])
           (loop)])))

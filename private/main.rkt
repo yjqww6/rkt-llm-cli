@@ -54,12 +54,14 @@
 (struct Redo InteractiveCommon ())
 (struct Continue ())
 
-(define-type Chatter (History (-> String Void) Options -> Msg))
+(define-type Chatter (History Streaming Options -> Msg))
 (define-type Interactive (U User ToolResult Redo Continue))
-(define-type InteractiveChatter (Interactive (-> String Void) Options -> Msg))
-(define-type Completer (String (-> String Void) Options -> String))
+(define-type InteractiveChatter (Interactive Streaming Options -> Msg))
+(define-type Completer (String Streaming Options -> String))
 (define-type ChatTemplate (History Options -> String))
 (define-type InteractiveHook (-> Interactive Options (Values Interactive Options)))
+(define-type StreamingType (U 'content 'think))
+(define-type Streaming (-> String StreamingType Void))
 
 (define-type (Nullable t) (U 'null t))
 
@@ -184,7 +186,7 @@
                       (on-abort))])
     (proc)))
 
-(define (call/color [color : (U 'blue 'red)] [thunk : (-> Void)]
+(define (call/color [color : (U 'blue 'red 'gray)] [thunk : (-> Void)]
                     #:output [output : Output-Port (current-output-port)]
                     #:reset? [reset? : Boolean #t]
                     #:newline? [newline? : Boolean #t])
@@ -196,7 +198,8 @@
     [(terminal-port? output)
      (write-string (cond
                      [(eq? color 'red) "\033[31m"]
-                     [(eq? color 'blue) "\033[34m"])
+                     [(eq? color 'blue) "\033[34m"]
+                     [(eq? color 'gray) "\033[90m"])
                    output)
      (thunk)
      (write-string "\033[0m" output)]

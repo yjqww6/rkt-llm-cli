@@ -20,7 +20,7 @@
     (if (not prefix)
         chatter
         (λ (h s o)
-          (s prefix)
+          (s prefix 'content)
           (define prefill (make-assistant prefix))
           (define resp (chatter (append h (list prefill)) s o))
           (merge-message prefill resp))))
@@ -84,29 +84,41 @@
     (λ ([p : Input-Port])
       (current-history (cast (read p) History)))))
 
-(define ((default-streaming) [s : String])
-  (display s)
-  (flush-output))
+(define ((default-streaming) [s : String] [type : StreamingType])
+  (cond
+    [(eq? type 'think) (void)]
+    [else
+     (display s)
+     (flush-output)]))
+
+(define ((gray-cot-streaming) [s : String] [type : StreamingType])
+  (define (f)
+    (display s)
+    (flush-output))
+  (cond
+    [(eq? type 'think)
+     (call/color 'gray f #:reset? #f #:newline? #f)]
+    [else (f)]))
 
 (define (make-check-streaming [check : (-> Char Boolean)]
-                              [up : (-> String Void)]
-                              #:include? [include? #f]) : (-> String Void)
+                              [up : (-> String StreamingType Void)]
+                              #:include? [include? #f]) : (-> String StreamingType Void)
   (define done : Boolean #f)
-  (λ (s)
+  (λ (s t)
     (cond
       [(not done)
        (let loop ([i : Nonnegative-Fixnum 0])
          (when (< i (string-length s))
            (cond
              [(check (string-ref s i))
-              (up (substring s (if include? i (+ i 1))))
+              (up (substring s (if include? i (+ i 1))) t)
               (set! done #t)]
              [else (loop (add1 i))])))]
-      [else (up s)])))
+      [else (up s t)])))
 
 (define-parameter current-cot-suffix "</think>" : String)
 
-(define (hide-cot-streaming)
+(define (skip-content-cot-streaming)
   (define checker (make-suffixes-checker (list (current-cot-suffix))))
   (make-check-streaming
    (λ ([c : Char]) (string? (checker c)))
