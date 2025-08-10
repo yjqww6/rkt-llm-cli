@@ -168,6 +168,8 @@
   [model : (Nullable String)]
   [context-window : (Nullable Exact-Positive-Integer)])
 
+(define-parameter current-reasoning-delta 'reasoning_content : Symbol)
+
 (define-parameter current-verbose #f : Boolean)
 (define-parameter current-network-trace void : (-> (U 'send 'recv) (U Bytes String) Void))
 

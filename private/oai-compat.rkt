@@ -34,7 +34,7 @@
                                          (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
                 (hasheq 'type "image_url" 'image_url (hasheq 'url d))]))
            content)])
-   'reasoning_content (false->nullable reasoning-content)))
+   (current-reasoning-delta) (false->nullable reasoning-content)))
 
 (define (build-body-common [options : Options])
   (hash-build
@@ -94,7 +94,7 @@
   (match (json-ref j 'choices 0 'message)
     [(hash* ['content content #:default ""]
             ['tool_calls (? list? tool-calls) #:default '()]
-            ['reasoning_content reasoning-content #:default #f])
+            [(current-reasoning-delta) reasoning-content #:default #f])
      (define str-content
        (match content
          [(? string?) content]
@@ -146,7 +146,7 @@
        (streaming content 'content)]
       [_ (void)])
     (match delta
-      [(hash* ['reasoning_content (? string? content)])
+      [(hash* [(current-reasoning-delta) (? string? content)])
        (write-string content reasoning-content)
        (streaming content 'think)]
       [_ (void)])
