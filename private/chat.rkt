@@ -91,14 +91,19 @@
      (display s)
      (flush-output)]))
 
-(define ((gray-cot-streaming) [s : String] [type : StreamingType])
-  (define (f)
-    (display s)
-    (flush-output))
-  (cond
-    [(eq? type 'think)
-     (call/color 'gray f #:reset? #f #:newline? #f)]
-    [else (f)]))
+(define (gray-cot-streaming)
+  (define last-type : (Option StreamingType) #f)
+  (λ ([s : String] [type : StreamingType])
+    (when (and last-type (not (eq? type last-type)))
+      (newline))
+    (set! last-type type)
+    (define (f)
+      (display s)
+      (flush-output))
+    (cond
+      [(eq? type 'think)
+       (call/color 'gray f #:reset? #f #:newline? #f)]
+      [else (f)])))
 
 (define (make-check-streaming [check : (-> Char Boolean)]
                               [up : (-> String StreamingType Void)]
