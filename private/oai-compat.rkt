@@ -152,15 +152,15 @@
       [_ (void)])
     (match delta
       [(hash* ['tool_calls
-               (list (hash* ['index (? exact-integer? index) #:default 0]
-                            ['id (? string? id) #:default ""]
+               (list (hash* ['index index #:default 0]
+                            ['id id #:default ""]
                             ['function
                              (hash* ['name (? string? name) #:default ""]
                                     ['arguments (? string? arguments) #:default ""])]))])
        ((inst hash-update! Integer (Option ToolCall))
-        streaming-tools index
+        streaming-tools (if (exact-integer? index) index 0)
         (λ ([tc : (Option ToolCall)])
-          (merge-streaming-tools tc (ToolCall name arguments id)))
+          (merge-streaming-tools tc (ToolCall name arguments (if (string? id) id ""))))
         (λ () #f))]
       [_ (void)])
     (void))
