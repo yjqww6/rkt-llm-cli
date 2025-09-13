@@ -211,9 +211,10 @@
   (define streaming? (parse-content-type-streaming? headers))
   (define (handle [j : JSExpr])
     (log-verbose j)
-    (define text (cast (json-ref j 'choices 0 'text) String))
-    (streaming text 'content)
-    (write-string text all-text)
+    (define text (json-ref j 'choices 0 'text))
+    (when (string? text)
+      (streaming text 'content)
+      (write-string text all-text))
     (void))
   (define all-text (open-output-string))
   (cond
