@@ -126,7 +126,7 @@
       [(string-prefix? l "data: ")
        (handler (string->jsexpr (substring l 6)))
        (loop)]
-      [else (error 'handle-event-stream "~a" l)])))
+      [else (loop)])))
 
 (define (handle-event-stream [port : Input-Port] [streaming : Streaming])
   (define whole-content (open-output-string))
