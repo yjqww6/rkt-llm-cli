@@ -30,14 +30,20 @@
      (error 'inject-system-to-user "system must be followed by user")]
     [_ messages]))
 
+(define (write-content [content : (U (Listof (U Image String)) String)] [s : Output-Port])
+  (assert (or (string? content) (andmap string? content)))
+  (cond
+    [(string? content) (write-string content s)]
+    [else (for ([content (in-list content)])
+            (write-string content s))]))
+
 (define (chatml [messages : History] [o : Options]) : String
   (define-values (his prefill) (split-prefill messages))
   (define s (open-output-string))
   (for ([msg (in-list his)])
     (match-define (struct* Msg ([role role] [content content])) msg)
-    (assert (string? content))
     (write-string (format "<|im_start|>~a\n" role) s)
-    (write-string content s)
+    (write-content content s)
     (write-string "<|im_end|>\n" s))
   (write-string "<|im_start|>assistant\n" s)
   (when prefill
@@ -49,10 +55,9 @@
   (define s (open-output-string))
   (for ([msg (in-list (inject-system-to-user h))])
     (match-define (struct* Msg ([role role] [content content])) msg)
-    (assert (string? content))
     (define mapped-role (if (string=? role "assistant") "model" role))
     (write-string (format "<start_of_turn>~a\n" mapped-role) s)
-    (write-string content s)
+    (write-content content s)
     (write-string "<end_of_turn>\n" s))
   (write-string "<start_of_turn>model\n" s)
   (when prefill
@@ -75,9 +80,8 @@
         [i (in-naturals 1)])
     (match msg
       [(struct* Msg ([role "system"] [content content]))
-       (assert (string? content))
        (put "[SYSTEM_PROMPT]")
-       (put content)
+       (write-content content s)
        (put "[/SYSTEM_PROMPT]")]
       [(struct* Msg ([role "user"] [content content]))
        (assert (string? content))
@@ -88,7 +92,7 @@
            (put (jsexpr->string (map Tool-desc tools)))
            (put "[/AVAILABLE_TOOLS]")))
        (put "[INST]")
-       (put content)
+       (write-content content s)
        (put "[/INST]")]
       [(struct* Msg ([role "assistant"] [content content] [tool-calls tool-calls]))
        (assert (string? content))
