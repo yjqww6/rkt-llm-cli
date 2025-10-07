@@ -2,6 +2,7 @@
 (require "private/main.rkt"
          (prefix-in oai: "private/oai-compat.rkt")
          (prefix-in ollama: "private/ollama.rkt")
+         (prefix-in response: "private/oai-response.rkt")
          "private/chat.rkt"
          "private/chat-template.rkt"
          racket/match
@@ -87,46 +88,60 @@
    (λ ()
      ((current-complete) s))))
 
-(define-type BackendType (U 'oai-compat 'ollama))
+(define-type BackendType (U 'oai-compat 'ollama 'oai-response))
 
 (define (endpoint #:type [type : BackendType 'oai-compat] #:complete? [complete? : Boolean #f]
                   #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
                   #:prefix [prefix : (Option String) #f])
   (make-default-options host
                         (or port (cond
-                                   [(eq? type 'oai-compat) 8080]
+                                   [(memq type '(oai-compat oai-response)) 8080]
                                    [(eq? type 'ollama) 11434]))
                         (string-append (or prefix
                                            (cond
-                                             [(eq? type 'oai-compat) "v1/"]
+                                             [(memq type '(oai-compat oai-response)) "v1/"]
                                              [(eq? type 'ollama) ""]))
                                        (cond
                                          [(eq? type 'oai-compat) (if complete? "completions" "chat/completions")]
-                                         [(eq? type 'ollama) (if complete? "api/generate" "api/chat")]))))
+                                         [(eq? type 'ollama) (if complete? "api/generate" "api/chat")]
+                                         [(eq? type 'oai-response) "responses"]))))
 
 (define (new-chatter #:type [type : BackendType 'oai-compat]) : Chatter
   (cond
     [(eq? type 'oai-compat) oai:chat]
-    [(eq? type 'ollama) ollama:chat]))
+    [(eq? type 'ollama) ollama:chat]
+    [(eq? type 'oai-response) (λ (h s o) (error 'new-chatter "unsupported"))]))
 
 (define (new-completer #:type [type : BackendType 'oai-compat]) : Completer
   (cond
     [(eq? type 'oai-compat) oai:completion]
-    [(eq? type 'ollama) ollama:completion]))
+    [(eq? type 'ollama) ollama:completion]
+    [(eq? type 'oai-response) (λ (h s o) (error 'new-completer "unsupported"))]))
 
 (define (use-endpoint #:type [type : BackendType 'oai-compat]
                       #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
                       #:tpl [tpl : (Option String) #f] #:prefix [prefix : (Option String) #f])
   (default-complete-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? #t))
   (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? (and tpl #t)))
-  (current-completer (new-completer #:type type))
-  (current-chatter (new-chatter #:type type))
-  (current-interactive-chatter
-   (if tpl
-       (make-default-interactive-chatter
-        (make-chat-by-template (λ (h s o) ((current-completer) h s o)) (if (string? tpl) (chat-template tpl) tpl))
-        default-complete-options)
-       (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))))
+  (cond
+    [(eq? type 'oai-response)
+     (current-completer (new-completer #:type type))
+     (current-chatter (new-chatter #:type type))
+     (current-interactive-chatter
+      (let ([chat (response:chat current-response-id current-history)])
+        (ann
+         (λ (h s o)
+           (chat h s (merge-Options o (default-chatter-options))))
+         InteractiveChatter)))]
+    [else
+     (current-completer (new-completer #:type type))
+     (current-chatter (new-chatter #:type type))
+     (current-interactive-chatter
+      (if tpl
+          (make-default-interactive-chatter
+           (make-chat-by-template (λ (h s o) ((current-completer) h s o)) (if (string? tpl) (chat-template tpl) tpl))
+           default-complete-options)
+          (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options)))]))
 
 (define-parameter current-paste-text '() : (Listof String))
 (define-parameter current-paste-image '() : (Listof Image))

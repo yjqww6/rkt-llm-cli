@@ -7,6 +7,7 @@
 
 (define-parameter current-system #f : (Option String))
 (define-parameter current-history '() : History)
+(define-parameter current-response-id #f : (Option String))
 
 (define (make-history [history : History] [new-msgs : (Listof Msg)])
   (define h (if (null? new-msgs) history (append history new-msgs)))
@@ -65,7 +66,8 @@
   (current-history (drop-right (current-history) 2)))
 
 (define (clear)
-  (current-history '()))
+  (current-history '())
+  (current-response-id #f))
 
 (define (map-chatter [chatter : Chatter] [proc : (-> History History)])
   : Chatter
