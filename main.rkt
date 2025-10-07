@@ -65,7 +65,8 @@
 
 (define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String])
   (make-Options
-   #:endpoint (format "http://~a:~a/~a" host port path)))
+   #:endpoint (format "http://~a:~a/~a" host port path)
+   #:model "default_model"))
 
 (define #:forall (a) (call-with-cust (thunk : (-> a)))
   (define cust (make-custodian))
@@ -128,7 +129,7 @@
      (current-completer (new-completer #:type type))
      (current-chatter (new-chatter #:type type))
      (current-interactive-chatter
-      (let ([chat (response:chat current-response-id current-history)])
+      (let ([chat response:chat])
         (ann
          (λ (h s o)
            (chat h s (merge-Options o (default-chatter-options))))

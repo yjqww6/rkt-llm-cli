@@ -1,6 +1,7 @@
 #lang typed/racket/base/shallow
 (require "main.rkt"
          "types.rkt"
+         "chat.rkt"
          racket/match
          racket/string
          racket/port)
@@ -52,6 +53,7 @@
   (hash-build
    'model (Options-model options)
    'input input
+   'instructions (false->nullable (current-system))
    'stream (merge-right #t (Options-stream options))
    'tools (null->nullable (map rewrite-tool (map Tool-desc (Options-tools options))))
    'previous_response_id (false->nullable prev-resp-id)
@@ -136,10 +138,9 @@
      (streaming text 'think)]
     [else (void)]))
 
-(define ((chat [cur-prev-id : (Parameterof (Option String))]
-               [cur-history : (Parameterof History)])
+(define (chat
          [i : Interactive] [streaming : Streaming] [opt : Options])
-  (define data (jsexpr->bytes (build-oai-response-request i (cur-prev-id) opt)))
+  (define data (jsexpr->bytes (build-oai-response-request i (current-response-id) opt)))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
@@ -156,6 +157,6 @@
             (error 'chat "incomplete"))
           (handle-completed (bytes->jsexpr (port->bytes body)) streaming))
       (close-input-port body)))
-  (cur-prev-id id)
-  (cur-history (list msg))
+  (current-response-id id)
+  (current-history (list msg))
   msg)
