@@ -44,6 +44,12 @@
      (hash-set func 'type "function")]
     [_ (error 'rewrite-tool "invalid tool: ~a" tool)]))
 
+(define (->msgs [interactive : Interactive]) : (Listof Msg)
+  (cond
+    [(User? interactive) (list (User-msg interactive))]
+    [(ToolResult? interactive) (ToolResult-result interactive)]
+    [else (error '->msgs "invalid interactive: ~a" interactive)]))
+
 (define (build-oai-response-request [interactive : Interactive] [prev-resp-id : (Option String)] [options : Options]) : (Immutable-HashTable Symbol JSExpr)
   (define input : JSExpr
     (cond
@@ -158,5 +164,5 @@
           (handle-completed (bytes->jsexpr (port->bytes body)) streaming))
       (close-input-port body)))
   (current-response-id id)
-  (current-history (list msg))
+  (current-history (append (current-history) (->msgs i) (list msg)))
   msg)
