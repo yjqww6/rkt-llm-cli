@@ -49,7 +49,8 @@
                        'null)
    'max_tokens (Options-max-tokens options)
    'stop (null->nullable (Options-stop options))
-   'grammar (Options-grammar options)))
+   'grammar (Options-grammar options)
+   'model (Options-model options)))
 
 (define (build-chat-body [messages : History] [options : Options])
   (jsexpr->bytes

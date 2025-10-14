@@ -152,6 +152,7 @@
 
 (define-option Options
   [endpoint : (Nullable String)]
+  [model : (Nullable String)]
   [headers : (Listof String)]
   [stream : (Nullable Boolean)]
   [tools : (Listof Tool)]
@@ -165,7 +166,6 @@
   [min-p : (Nullable Flonum)]
   [repeat-penalty : (Nullable Flonum)]
   ;; ollama
-  [model : (Nullable String)]
   [context-window : (Nullable Exact-Positive-Integer)])
 
 (define-parameter current-reasoning-delta 'reasoning_content : Symbol)

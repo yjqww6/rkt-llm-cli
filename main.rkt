@@ -63,10 +63,10 @@
     ((current-completer) s ((current-streaming)) (current-Options))
     (newline)))
 
-(define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String])
+(define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String] [model : String])
   (make-Options
    #:endpoint (format "http://~a:~a/~a" host port path)
-   #:model "default_model"))
+   #:model model))
 
 (define #:forall (a) (call-with-cust (thunk : (-> a)))
   (define cust (make-custodian))
@@ -93,7 +93,7 @@
 
 (define (endpoint #:type [type : BackendType 'oai-compat] #:complete? [complete? : Boolean #f]
                   #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
-                  #:prefix [prefix : (Option String) #f])
+                  #:prefix [prefix : (Option String) #f] #:model [model : String "default_model"])
   (make-default-options host
                         (or port (cond
                                    [(memq type '(oai-compat oai-response)) 8080]
@@ -105,7 +105,8 @@
                                        (cond
                                          [(eq? type 'oai-compat) (if complete? "completions" "chat/completions")]
                                          [(eq? type 'ollama) (if complete? "api/generate" "api/chat")]
-                                         [(eq? type 'oai-response) "responses"]))))
+                                         [(eq? type 'oai-response) "responses"]))
+                        model))
 
 (define (new-chatter #:type [type : BackendType 'oai-compat]) : Chatter
   (cond
@@ -121,9 +122,10 @@
 
 (define (use-endpoint #:type [type : BackendType 'oai-compat]
                       #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
-                      #:tpl [tpl : (Option String) #f] #:prefix [prefix : (Option String) #f])
-  (default-complete-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? #t))
-  (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? (and tpl #t)))
+                      #:tpl [tpl : (Option String) #f] #:prefix [prefix : (Option String) #f]
+                      #:model [model : String "default_model"])
+  (default-complete-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? #t #:model model))
+  (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? (and tpl #t) #:model model))
   (cond
     [(eq? type 'oai-response)
      (current-completer (new-completer #:type type))
