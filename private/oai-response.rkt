@@ -15,18 +15,19 @@
      (cond
        [(string? content) content]
        [else
-        (hash-build
-         'role role
-         'content
-         (map (λ ([item : (U String Image)])
-                (cond
-                  [(string? item)
-                   (hasheq 'type "input_text" 'text item)]
-                  [else
-                   (define d (string-append "data:image/jpeg;base64,"
-                                            (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
-                   (hasheq 'type "input_image" 'image_url (hasheq 'url d))]))
-              content))])]
+        (list
+         (hash-build
+          'role role
+          'content
+          (map (λ ([item : (U String Image)])
+                 (cond
+                   [(string? item)
+                    (hasheq 'type "input_text" 'text item)]
+                   [else
+                    (define d (string-append "data:image/jpeg;base64,"
+                                             (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
+                    (hasheq 'type "input_image" 'image_url d)]))
+               content)))])]
     [(string=? role "tool")
      (assert (string? content))
      (hash-build

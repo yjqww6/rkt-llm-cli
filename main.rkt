@@ -132,7 +132,7 @@
       (let ([chat response:chat])
         (ann
          (λ (h s o)
-           (chat h s (merge-Options o (default-chatter-options))))
+           (chat h s (merge-Options (default-chatter-options) o)))
          InteractiveChatter)))]
     [else
      (current-completer (new-completer #:type type))
