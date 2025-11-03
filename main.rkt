@@ -146,6 +146,7 @@
            default-complete-options)
           (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options)))]))
 
+(define-parameter current-paste-ext '() : (Listof (U String Image)))
 (define-parameter current-paste-text '() : (Listof String))
 (define-parameter current-paste-image '() : (Listof Image))
 (define-parameter current-output-prefix #f : (Option String))
@@ -162,28 +163,32 @@
        [else
         (define texts (current-paste-text))
         (define images (current-paste-image))
+        (define exts (current-paste-ext))
         (define prefix (current-output-prefix))
         (define pasted-text
           (if (null? texts) #f
               (string-join texts "\n" #:before-first "```\n" #:after-last "\n```\n")))
-        (define user
-          (cond
-            [(string? prompt)
-             (define content (if pasted-text
-                                 (string-append pasted-text prompt)
-                                 prompt))
-             (make-user
-              (if (null? images)
-                  content
-                  (append images (list content))))]
-            [else
-             (make-user
-              (append images
-                      (if pasted-text (list pasted-text) '())
-                      prompt))]))
-        (chat (User prefix user))
+        (let ([prompt (if (null? exts) prompt
+                          (append (list "```") exts (list "```") (if (string? prompt) (list prompt) prompt)))])
+          (define user
+            (cond
+              [(string? prompt)
+               (define content (if pasted-text
+                                   (string-append pasted-text prompt)
+                                   prompt))
+               (make-user
+                (if (null? images)
+                    content
+                    (append images (list content))))]
+              [else
+               (make-user
+                (append images
+                        (if pasted-text (list pasted-text) '())
+                        prompt))]))
+          (chat (User prefix user)))
         (current-paste-text '())
         (current-paste-image '())
+        (current-paste-ext '())
         (current-output-prefix #f)]))
    break-prompt-tag
    (λ ([cc : (-> Nothing)])
@@ -206,6 +211,7 @@
   (string-append
    (string-join (map (λ (x) "img ") (current-paste-image)) "")
    (string-join (map (λ (x) "text ") (current-paste-text)) "")
+   (if (null? (current-paste-ext)) "" "paste ")
    (if (current-output-prefix) "pre " "")
    ">>>"))
 (define current-repl-prompt (make-parameter default-repl-prompt))
@@ -256,6 +262,7 @@
 (define (warmup)
   (parameterize ([current-output-prefix (current-output-prefix)]
                  [current-paste-text (current-paste-text)]
+                 [current-paste-ext (current-paste-ext)]
                  [current-paste-image (current-paste-image)]
                  [current-max-tokens 1]
                  [current-stream #f]
