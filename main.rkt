@@ -146,10 +146,33 @@
            default-complete-options)
           (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options)))]))
 
-(define-parameter current-paste-ext '() : (Listof (U String Image)))
-(define-parameter current-paste-text '() : (Listof String))
-(define-parameter current-paste-image '() : (Listof Image))
+(define-parameter current-pasted '() : (Listof (U String Image)))
+
+(define pasted-history : (Thread-Cellof (Option (Weak-HashTable Msg (Listof (U String Image))))) (make-thread-cell #f #f))
+(thread-cell-set! pasted-history (ann (make-weak-hasheq) (Weak-HashTable Msg (Listof (U String Image)))))
+
+(define (find-new-user [h : History] [base : History]) : (Option Msg)
+  (let loop ([h h] [b base])
+    (match* (h b)
+      [((cons _ h1) (cons _ b1)) (loop h1 b1)]
+      [((cons (and u (struct* Msg ([role "user"]))) _) '()) u]
+      [(_ _) #f])))
+
+(define (remember-pasted [base : History] [h : History] [p : (Listof (U String Image))])
+  (define w (thread-cell-ref pasted-history))
+  (when w
+    (define u (find-new-user h base))
+    (when u
+      (hash-set! w u p))))
+(define (restore-pasted [base : History] [h : History]) : (Option (Listof (U String Image)))
+  (define w (thread-cell-ref pasted-history))
+  (and w
+       (let ([u (find-new-user h base)])
+         (and u
+              (hash-ref w u (λ () #f))))))
+
 (define-parameter current-output-prefix #f : (Option String))
+
 (define (repl-chat [prompt : (U String 'redo 'continue (Listof (U String Image)))])
   (call-with-continuation-prompt
    (λ ()  
@@ -161,34 +184,14 @@
        [(eq? prompt 'continue)
         (chat (Continue))]
        [else
-        (define texts (current-paste-text))
-        (define images (current-paste-image))
-        (define exts (current-paste-ext))
+        (define pasted (current-pasted))
         (define prefix (current-output-prefix))
-        (define pasted-text
-          (if (null? texts) #f
-              (string-join texts "\n" #:before-first "```\n" #:after-last "\n```\n")))
-        (let ([prompt (if (null? exts) prompt
-                          (append (list "```") exts (list "```") (if (string? prompt) (list prompt) prompt)))])
-          (define user
-            (cond
-              [(string? prompt)
-               (define content (if pasted-text
-                                   (string-append pasted-text prompt)
-                                   prompt))
-               (make-user
-                (if (null? images)
-                    content
-                    (append images (list content))))]
-              [else
-               (make-user
-                (append images
-                        (if pasted-text (list pasted-text) '())
-                        prompt))]))
-          (chat (User prefix user)))
-        (current-paste-text '())
-        (current-paste-image '())
-        (current-paste-ext '())
+        (define user
+          (make-user (append '("```") pasted '("```") (if (string? prompt) (list prompt) prompt))))
+        (define base (current-history))
+        (chat (User prefix user))
+        (remember-pasted base (current-history) pasted)
+        (current-pasted '())
         (current-output-prefix #f)]))
    break-prompt-tag
    (λ ([cc : (-> Nothing)])
@@ -202,16 +205,16 @@
              [String Boolean -> Void]
              [Image Boolean -> Void]))
 (define (do-paste pasted append?)
-  (define param (if (string? pasted) current-paste-text current-paste-image))
   (cond
-    [append? (param (append (param) (list pasted)))]
-    [else (param (list pasted))]))
+    [append? (current-pasted (append (current-pasted) (list pasted)))]
+    [else (current-pasted (list pasted))]))
 
 (define (default-repl-prompt)
   (string-append
-   (string-join (map (λ (x) "img ") (current-paste-image)) "")
-   (string-join (map (λ (x) "text ") (current-paste-text)) "")
-   (if (null? (current-paste-ext)) "" "paste ")
+   (let ([c (count string? (current-pasted))])
+     (if (> c 0) (format "text:~a " c) ""))
+   (let ([c (count Image? (current-pasted))])
+     (if (> c 0) (format "img:~a " c) ""))
    (if (current-output-prefix) "pre " "")
    ">>>"))
 (define current-repl-prompt (make-parameter default-repl-prompt))
@@ -220,32 +223,13 @@
   (define old (current-repl-prompt))
   (λ () (string-append prefix " " (old))))
 
-(define (take-last-prompt)
-  (define (extract-paste-text [content : String])
-    (match (regexp-match #px"^```\n(.*)\n```(.*)$" content)
-      [(list _ paste _) paste]
-      [_ #f]))
-  (define (extract-paste [content : (U String (Listof (U Image String)))])
-    (cond
-      [(string? content) (extract-paste-text content)]
-      [else
-       (define item (last content))
-       (cond
-         [(string? item) (extract-paste-text item)]
-         [else #f])]))
-  (define (extract-imgs [content : (U String (Listof (U Image String)))]) : (Listof Image)
-    (cond
-      [(string? content) '()]
-      [else (filter-map (λ ([item : (U Image String)]) (and (Image? item) item)) content)]))
-  (match/values
-   (split-at-right (current-history) 2)
-   [(history (list (struct* Msg ([role "user"] [content (and (app extract-paste paste) (app extract-imgs images))])) assistant))
-    #:when (or paste (not (null? images)))
-    (when paste
-      (current-paste-text (list paste)))
-    (unless (null? images)
-      (current-paste-image images))
-    (current-history history)]))
+(define (undo/pasted)
+  (define h (current-history))
+  (undo)
+  (define base (current-history))
+  (define r (restore-pasted base h))
+  (when r
+    (current-pasted r)))
 
 (define current-repl-loop (make-parameter (ann (λ () (error 'repl-loop)) (-> Any))))
 (define (repl-loop) ((current-repl-loop)))
@@ -261,9 +245,7 @@
 
 (define (warmup)
   (parameterize ([current-output-prefix (current-output-prefix)]
-                 [current-paste-text (current-paste-text)]
-                 [current-paste-ext (current-paste-ext)]
-                 [current-paste-image (current-paste-image)]
+                 [current-pasted (current-pasted)]
                  [current-max-tokens 1]
                  [current-stream #f]
                  [current-history (current-history)]

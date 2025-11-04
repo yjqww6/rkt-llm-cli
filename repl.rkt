@@ -43,8 +43,7 @@
   (do-paste pasted append?))
 
 (define (clear-paste)
-  (current-paste-text '())
-  (current-paste-image '()))
+  (current-pasted '()))
 
 (define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
   (define tools (flatten ts))
@@ -161,7 +160,7 @@
        =>
        (λ (p)
          (forward p in)
-         (current-paste-text (list (car (regexp-split multi-input-paste-end (port->string in)))))
+         (current-pasted (list (car (regexp-split multi-input-paste-end (port->string in)))))
          (refreshing))]
       [else (message (port->string in))]))
 
