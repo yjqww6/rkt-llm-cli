@@ -147,6 +147,8 @@
           (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options)))]))
 
 (define-parameter current-pasted '() : (Listof (U String Image)))
+(define (clear-paste)
+  (current-pasted '()))
 
 (define pasted-history : (Thread-Cellof (Option (Weak-HashTable Msg (Listof (U String Image))))) (make-thread-cell #f #f))
 (thread-cell-set! pasted-history (ann (make-weak-hasheq) (Weak-HashTable Msg (Listof (U String Image)))))
@@ -201,13 +203,13 @@
      (when (and (not (eof-object? line)) (regexp-match? #px"^\\s*y" line))
        (cc)))))
 
-(: do-paste (case->
-             [String Boolean -> Void]
-             [Image Boolean -> Void]))
+(define-parameter current-paste (λ () #f) : (-> (Option (Listof (U Image String)))))
+
+(: do-paste (-> (Listof (U Image String)) Boolean Void))
 (define (do-paste pasted append?)
   (cond
-    [append? (current-pasted (append (current-pasted) (list pasted)))]
-    [else (current-pasted (list pasted))]))
+    [append? (current-pasted (append (current-pasted) pasted))]
+    [else (current-pasted pasted)]))
 
 (define (default-repl-prompt)
   (string-append

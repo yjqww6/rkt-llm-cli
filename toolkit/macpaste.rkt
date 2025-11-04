@@ -4,7 +4,7 @@
   #;(require racket/gui/base)
   (require ffi/unsafe/objc ffi/unsafe/nsalloc ffi/unsafe/atomic
            ffi/unsafe ffi/unsafe/nsstring)
-  (provide do-paste PNG JPEG WEBP)
+  (provide do-paste image-type?)
 
   (import-class NSPasteboard NSAttributedString)
   (define _NSUInteger _ulong)
@@ -58,6 +58,7 @@
   (define PNG "public.png")
   (define JPEG "public.jpeg")
   (define WEBP "org.webmproject.webp")
+  (define SVG "public.svg-image")
   (define TEXT "public.utf8-plain-text")
   (define FLAT-RTFD "com.apple.flat-rtfd")
 
@@ -86,12 +87,15 @@
             (define file-type (tell #:type _NSString attachment fileType))
             (define content (tell attachment contents))
             (define file-wrapper (tell attachment fileWrapper))
-            (cons
-             str
-             (cond
-               [content (vector file-type (get-data-bytes content))]
-               [file-wrapper (vector file-type (get-data-bytes (tell file-wrapper regularFileContents)))]
-               [else '()]))]
+            (define b
+              (cond
+                [content (list (vector file-type (get-data-bytes content)))]
+                [file-wrapper (list (vector file-type (get-data-bytes (tell file-wrapper regularFileContents))))]
+                [else '()]))
+            (cond
+              [(string=? str (string (integer->char #xfffc))) ; object replacement character
+               b]
+              [else (cons str b)])]
            [else
             str])
          #;
@@ -120,16 +124,22 @@
                 (handle-rtfd data)
                 #;(if (not data) '() (vector FLAT-RTFD (get-data-bytes data)))]
                [else
-                (tell #:type _NSString item stringForType: #:type _NSString TEXT)]))]))))))
+                (tell #:type _NSString item stringForType: #:type _NSString TEXT)]))])))))
+  (define (image-type? type)
+    (member type (list PNG JPEG WEBP SVG))))
 
-(require "../private/main.rkt" 'clipboard)
+(require "../private/main.rkt" 'clipboard (only-in "../main.rkt" current-paste))
 (provide paste)
 
 (define (paste)
   (define contents (do-paste))
-  (for/list ([item contents])
-    (cond
-      [(string? item) item]
-      [(member (vector-ref item 0) (list PNG JPEG WEBP))
-       (Image (vector-ref item 1))]
-      [else ""])))
+  (filter
+   values
+   (for/list ([item contents])
+     (cond
+       [(string? item) item]
+       [(image-type? (vector-ref item 0))
+        (Image (vector-ref item 1))]
+       [else #f]))))
+
+(current-paste paste)

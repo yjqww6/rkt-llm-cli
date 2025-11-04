@@ -38,12 +38,16 @@
        (define t (init))
        (send c set-clipboard-string s t)])))
 
-(define (paste [append? #t])
-  (define pasted (clip))
-  (do-paste pasted append?))
+(current-paste (λ ()
+                 (define x (clip))
+                 (cond
+                   [(equal? x "") #f]
+                   [else (list x)])))
 
-(define (clear-paste)
-  (current-pasted '()))
+(define (paste [append? #t])
+  (define pasted ((current-paste)))
+  (when pasted
+    (do-paste pasted append?)))
 
 (define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
   (define tools (flatten ts))
