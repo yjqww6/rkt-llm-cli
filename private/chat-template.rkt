@@ -111,6 +111,25 @@
     (put prefill))
   (get-output-string s))
 
+(define (kimi [messages : History] [o : Options]) : String
+  (define-values (his prefill) (split-prefill messages))
+  (define s (open-output-string))
+  (for ([msg (in-list his)])
+    (match-define (struct* Msg ([role role] [content content])) msg)
+    (match role
+      [(or "user" "system" "assistant") (fprintf s "<im_~a>~a<im_middle>" role role)])
+    (cond
+      [(string? content) (write-string content s)]
+      [else
+       (for ([text (in-list content)]
+             #:when (string? text))
+         (write-string text s))])
+    (write-string "<im_end>" s))
+  (write-string "<|im_assistant|>assistant<im_middle>" s)
+  (when prefill
+    (write-string prefill s))
+  (get-output-string s))
+
 (define (skip-cot-tokens [msgs : History] #:sep [sep : String "</think>"]) : History
   (define end (length msgs))
   (for/list ([m (in-list msgs)]
@@ -130,7 +149,8 @@
     (match name
       ["chatml" chatml]
       ["gemma" gemma]
-      ["mistral" mistral]))
+      ["mistral" mistral]
+      ["kimi" kimi]))
   (cond
     [(not skip-cot?) tpl]
     [else
