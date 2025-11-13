@@ -145,9 +145,11 @@
      (streaming text 'think)]
     [else (void)]))
 
+(define response-ids : (HashTable Any String) (make-weak-hasheq))
+
 (define (chat
          [i : Interactive] [streaming : Streaming] [opt : Options])
-  (define data (jsexpr->bytes (build-oai-response-request i (current-response-id) opt)))
+  (define data (jsexpr->bytes (build-oai-response-request i (hash-ref response-ids (current-history) (λ () #f)) opt)))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
@@ -164,6 +166,6 @@
             (error 'chat "incomplete"))
           (handle-completed (bytes->jsexpr (port->bytes body)) streaming))
       (close-input-port body)))
-  (current-response-id id)
   (current-history (append (current-history) (->msgs i) (list msg)))
+  (hash-set! response-ids (current-history) id)
   msg)
