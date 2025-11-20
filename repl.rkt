@@ -15,7 +15,7 @@
 (define (upload-image)
   (define p (get-file))
   (when p
-    (do-paste (Image (file->bytes p)) #t)))
+    (do-paste (list (Image (file->bytes p))) #t)))
 
 (define (bitmap->bytes bm)
   (define b (open-output-bytes))
