@@ -1,7 +1,7 @@
 #lang racket/base
 (module clipboard racket/base
   (require (for-syntax racket/base syntax/parse) racket/list)
-  #;(require racket/gui/base)
+  (require racket/gui/base)
   (require ffi/unsafe/objc ffi/unsafe/nsalloc ffi/unsafe/atomic
            ffi/unsafe ffi/unsafe/nsstring)
   (provide do-paste image-type?)
@@ -129,9 +129,9 @@
     (member type (list PNG JPEG WEBP SVG))))
 
 (require "../private/main.rkt" 'clipboard (only-in "../main.rkt" current-paste))
-(provide paste)
+(provide macpaste)
 
-(define (paste)
+(define (macpaste)
   (define contents (do-paste))
   (filter
    values
@@ -142,4 +142,4 @@
         (Image (vector-ref item 1))]
        [else #f]))))
 
-(current-paste paste)
+(current-paste macpaste)

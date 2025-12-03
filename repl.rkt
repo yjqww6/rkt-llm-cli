@@ -38,11 +38,13 @@
        (define t (init))
        (send c set-clipboard-string s t)])))
 
-(current-paste (λ ()
-                 (define x (clip))
-                 (cond
-                   [(equal? x "") #f]
-                   [else (list x)])))
+(define (default-paste)
+  (define x (clip))
+  (cond
+    [(equal? x "") #f]
+    [else (list x)]))
+
+(current-paste default-paste)
 
 (define (paste [append? #t])
   (define pasted ((current-paste)))
