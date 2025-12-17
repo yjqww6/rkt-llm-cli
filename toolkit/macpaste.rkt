@@ -125,11 +125,20 @@
                 #;(if (not data) '() (vector FLAT-RTFD (get-data-bytes data)))]
                [else
                 (tell #:type _NSString item stringForType: #:type _NSString TEXT)]))])))))
+  (define image-types
+    (list (cons PNG 'png)
+          (cons JPEG 'jpeg)
+          (cons WEBP 'webp)
+          (cons SVG 'svg)))
   (define (image-type? type)
-    (member type (list PNG JPEG WEBP SVG))))
+    (assoc type image-types)))
 
-(require "../private/main.rkt" 'clipboard (only-in "../main.rkt" current-paste))
-(provide macpaste)
+(require "../private/main.rkt" 'clipboard (only-in "../main.rkt" current-paste)
+         racket/class racket/draw)
+(provide macpaste current-accpet-image-types current-convert-images)
+
+(define current-accpet-image-types (make-parameter #f))
+(define current-convert-images (make-parameter #f))
 
 (define (macpaste)
   (define contents (do-paste))
@@ -139,7 +148,21 @@
      (cond
        [(string? item) item]
        [(image-type? (vector-ref item 0))
-        (Image (vector-ref item 1))]
+        =>
+        (λ (p)
+          (and
+           (cond
+             [(current-accpet-image-types) => (λ (t) (memq (cdr p) t))]
+             [else #t])
+           (cond
+             [(or (memq (cdr p) '(png jpeg)) (not (current-convert-images)))
+              (Image (vector-ref item 1))]
+             [else
+              (define bm (make-object bitmap% 1 1))
+              (define out (open-output-bytes))
+              (and (send bm load-file (open-input-bytes (vector-ref item 1)))
+                   (send bm save-file out 'png)
+                   (Image (get-output-bytes out)))])))]
        [else #f]))))
 
 (current-paste macpaste)
