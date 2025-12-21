@@ -189,7 +189,10 @@
         (define pasted (current-pasted))
         (define prefix (current-output-prefix))
         (define user
-          (make-user (append '("```") pasted '("```") (if (string? prompt) (list prompt) prompt))))
+          (make-user (append (if (null? pasted)
+                                 '()
+                                 (append '("```") pasted '("```")))
+                             (if (string? prompt) (list prompt) prompt))))
         (define base (current-history))
         (chat (User prefix user))
         (remember-pasted base (current-history) pasted)
