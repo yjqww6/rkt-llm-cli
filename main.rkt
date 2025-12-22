@@ -11,7 +11,8 @@
          racket/port)
 (provide (all-defined-out)
          (all-from-out "private/main.rkt")
-         (all-from-out "private/chat.rkt"))
+         (all-from-out "private/chat.rkt")
+         response:use-response-id)
 
 (define current-interactive-chatter (make-parameter (ann (λ (h s o) (error 'interactive-chatter "no endpoint")) InteractiveChatter)))
 (define current-chatter (make-parameter (ann (λ (h s o) (error 'chatter "no endpoint")) Chatter)))

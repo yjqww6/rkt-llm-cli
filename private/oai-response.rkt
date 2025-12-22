@@ -6,37 +6,59 @@
          racket/string
          racket/port)
 
-(provide chat)
+(provide chat use-response-id)
 
-(define (build-messages [msg : Msg])
-  (match-define (Msg role content _ id _) msg)
+(: build-message
+   (case->
+    [Msg True -> JSExpr]
+    [Msg False -> (Listof JSExpr)]))
+(define (build-message msg single?)
+  (match-define (Msg role content tcs id _) msg)
+  (define (->text-type)
+    (cond
+      [(string=? role "assistant") "output_text"]
+      [else "input_text"]))
   (cond
-    [(string=? role "user")
+    [(or (string=? role "user") (string=? role "assistant"))
      (cond
-       [(string? content) content]
+       [(string? content)
+        (if single? content (list (hasheq 'role role 'content (list (hasheq 'type (->text-type) 'text content)))))]
        [else
-        (list
+        (list*
          (hash-build
           'role role
           'content
           (map (λ ([item : (U String Image)])
                  (cond
                    [(string? item)
-                    (hasheq 'type "input_text" 'text item)]
+                    (hasheq 'type (->text-type) 'text item)]
                    [else
                     (define d (string-append "data:image/jpeg;base64,"
                                              (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
                     (hasheq 'type "input_image" 'image_url d)]))
-               content)))])]
+               content))
+         (map (λ ([tc : ToolCall])
+                (match-define (ToolCall name arg id) tc)
+                (hasheq 'type "function_call"
+                        'name name
+                        'arguments arg
+                        'call_id id))
+              tcs))])]
     [(string=? role "tool")
      (assert (string? content))
-     (hash-build
-      'type "function_call_output"
-      'call_id id
-      'role role
-      'output content)]
+     (list (hash-build
+            'type "function_call_output"
+            'call_id id
+            'role role
+            'output content))]
     [else
      (error 'build-messages "unknown role: ~a" role)]))
+
+(define (build-messages [msgs : (Listof Msg)])
+  (let loop : (Listof JSExpr) ([h msgs])
+    (cond
+      [(null? h) '()]
+      [else (append (build-message (car h) #f) (loop (cdr h)))])))
 
 (define (rewrite-tool [tool : JSExpr]) : JSExpr
   (match tool
@@ -51,12 +73,12 @@
     [(ToolResult? interactive) (ToolResult-result interactive)]
     [else (error '->msgs "invalid interactive: ~a" interactive)]))
 
-(define (build-oai-response-request [interactive : Interactive] [prev-resp-id : (Option String)] [options : Options]) : (Immutable-HashTable Symbol JSExpr)
-  (define input : JSExpr
-    (cond
-      [(User? interactive) (build-messages (User-msg interactive))]
-      [(ToolResult? interactive) (map build-messages (ToolResult-result interactive))]
-      [else (error 'build-oai-response-request "invalid interactive: ~a" interactive)]))
+(define (build-oai-response-request [interactive : Interactive] [prev-resp-id : (Option String)] [history : History] [options : Options]) : (Immutable-HashTable Symbol JSExpr)
+  (define msgs (append (if prev-resp-id '() history) (->msgs interactive)))
+  (define input
+    (match msgs
+      [(list msg) (build-message msg #t)]
+      [_ (build-messages msgs)]))
   (hash-build
    'model (Options-model options)
    'input input
@@ -147,9 +169,15 @@
 
 (define response-ids : (HashTable Any String) (make-weak-hasheq))
 
+(define use-response-id : (Parameterof Boolean) (make-parameter #t))
+
 (define (chat
          [i : Interactive] [streaming : Streaming] [opt : Options])
-  (define data (jsexpr->bytes (build-oai-response-request i (hash-ref response-ids (current-history) (λ () #f)) opt)))
+  (define data (jsexpr->bytes (build-oai-response-request
+                               i
+                               (and (use-response-id) (hash-ref response-ids (current-history) (λ () #f)))
+                               (current-history)
+                               opt)))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
