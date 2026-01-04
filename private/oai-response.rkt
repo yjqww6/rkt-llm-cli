@@ -4,6 +4,7 @@
          "chat.rkt"
          racket/match
          racket/string
+         racket/list
          racket/port)
 
 (provide chat use-response-id)
@@ -69,6 +70,8 @@
 
 (define (->msgs [interactive : Interactive]) : (Listof Msg)
   (cond
+    [(or (Continue? interactive) (InteractiveCommon-prefix interactive))
+     (error '->msgs "invalid interactive: ~a" interactive)]
     [(User? interactive) (list (User-msg interactive))]
     [(ToolResult? interactive) (ToolResult-result interactive)]
     [else (error '->msgs "invalid interactive: ~a" interactive)]))
@@ -167,15 +170,32 @@
      (streaming text 'think)]
     [else (void)]))
 
-(define response-ids : (HashTable Any String) (make-weak-hasheq))
+(define response-ids : (HashTable Msg (Pairof History String)) (make-weak-hasheq))
 
 (define use-response-id : (Parameterof Boolean) (make-parameter #t))
+
+(define (lookup-resp-id [h : History]) : (Option String)
+  (cond
+    [(null? h) #f]
+    [(hash-ref response-ids (last h) (λ () #f))
+     =>
+     (λ (p)
+       (if (let loop : Boolean ([h1 h] [h2 (car p)])
+             (match* (h1 h2)
+               [('() '()) #t]
+               [((cons a1 b1) (cons a2 b2))
+                #:when (eq? a1 a2)
+                (loop b1 b2)]
+               [(_ _) #f]))
+           (cdr p)
+           #f))]
+    [else #f]))
 
 (define (chat
          [i : Interactive] [streaming : Streaming] [opt : Options])
   (define data (jsexpr->bytes (build-oai-response-request
                                i
-                               (and (use-response-id) (hash-ref response-ids (current-history) (λ () #f)))
+                               (and (use-response-id) (lookup-resp-id (current-history)))
                                (current-history)
                                opt)))
   ((current-network-trace) 'send data)
@@ -195,5 +215,5 @@
           (handle-completed (bytes->jsexpr (port->bytes body)) streaming))
       (close-input-port body)))
   (current-history (append (current-history) (->msgs i) (list msg)))
-  (hash-set! response-ids (current-history) id)
+  (hash-set! response-ids msg (cons (current-history) id))
   msg)
