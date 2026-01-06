@@ -64,7 +64,17 @@
 (define (undo)
   (current-history (drop-right (current-history) 2)))
 
+(define recent-histories : (Parameterof (Listof History)) (make-parameter '()))
+
 (define (clear)
+  (define h (current-history))
+  (define recent (recent-histories))
+  (define new-recent
+    (cons h
+          (cond
+            [(>= (length recent) 3) (drop-right recent 1)]
+            [else recent])))
+  (recent-histories new-recent)
   (current-history '()))
 
 (define (map-chatter [chatter : Chatter] [proc : (-> History History)])
