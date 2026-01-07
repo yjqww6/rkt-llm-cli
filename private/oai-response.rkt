@@ -68,16 +68,7 @@
      (hash-set func 'type "function")]
     [_ (error 'rewrite-tool "invalid tool: ~a" tool)]))
 
-(define (->msgs [interactive : Interactive]) : (Listof Msg)
-  (cond
-    [(or (Continue? interactive) (InteractiveCommon-prefix interactive))
-     (error '->msgs "invalid interactive: ~a" interactive)]
-    [(User? interactive) (list (User-msg interactive))]
-    [(ToolResult? interactive) (ToolResult-result interactive)]
-    [else (error '->msgs "invalid interactive: ~a" interactive)]))
-
-(define (build-oai-response-request [interactive : Interactive] [prev-resp-id : (Option String)] [history : History] [options : Options]) : (Immutable-HashTable Symbol JSExpr)
-  (define msgs (append (if prev-resp-id '() history) (->msgs interactive)))
+(define (build-oai-response-request [msgs : (Listof Msg)] [prev-resp-id : (Option String)] [options : Options]) : (Immutable-HashTable Symbol JSExpr)
   (define input
     (match msgs
       [(list msg) (build-message msg #t)]
@@ -191,12 +182,24 @@
            #f))]
     [else #f]))
 
+(define (handle-history [i : Interactive] [h : History])
+  (cond
+    [(or (Continue? i) (InteractiveCommon-prefix i))
+     (error '->msgs "invalid interactive: ~a" i)]
+    [(User? i) (values h (list (User-msg i)))]
+    [(ToolResult? i) (values h (ToolResult-result i))]
+    [(Redo? i)
+     (define uh (drop-right h 1))
+     (splitf-at-right uh (λ ([m : Msg]) (not (string=? (Msg-role m) "assistant"))))]
+    [else (error '->msgs "invalid interactive: ~a" i)]))
+
 (define (chat
          [i : Interactive] [streaming : Streaming] [opt : Options])
+  (define-values (his msgs) (handle-history i (current-history)))
+  (define resp-id (and (use-response-id) (lookup-resp-id his)))
   (define data (jsexpr->bytes (build-oai-response-request
-                               i
-                               (and (use-response-id) (lookup-resp-id (current-history)))
-                               (current-history)
+                               (if resp-id msgs (append his msgs))
+                               resp-id
                                opt)))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
@@ -214,6 +217,6 @@
             (error 'chat "incomplete"))
           (handle-completed (bytes->jsexpr (port->bytes body)) streaming))
       (close-input-port body)))
-  (current-history (append (current-history) (->msgs i) (list msg)))
+  (current-history (append his msgs (list msg)))
   (hash-set! response-ids msg (cons (current-history) id))
   msg)
