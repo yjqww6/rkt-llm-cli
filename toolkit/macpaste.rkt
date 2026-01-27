@@ -56,6 +56,7 @@
         [_ #f])))
 
   (define PNG "public.png")
+  (define TIFF "public.tiff")
   (define JPEG "public.jpeg")
   (define WEBP "org.webmproject.webp")
   (define SVG "public.svg-image")
@@ -123,8 +124,9 @@
                 (define data (tell item dataForType: #:type _NSString FLAT-RTFD))
                 (handle-rtfd data)
                 #;(if (not data) '() (vector FLAT-RTFD (get-data-bytes data)))]
-               [else
-                (tell #:type _NSString item stringForType: #:type _NSString TEXT)]))])))))
+               [(member TEXT types)
+                (tell #:type _NSString item stringForType: #:type _NSString TEXT)]
+               [else '()]))])))))
   (define image-types
     (list (cons PNG 'png)
           (cons JPEG 'jpeg)
