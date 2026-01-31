@@ -304,3 +304,11 @@
   (parameterize ([current-chatter new-chatter]
                  [current-repl-prompt (make-prefix-repl-prompt "REROUTE")])
     (repl-loop)))
+
+(define (use-authorization-token [token : (Option String) #f])
+  (define tok
+    (or token (getenv "LLM_API_TOKEN")))
+  (assert tok)
+  (current-headers
+   (cons (string-append "Authorization: Bearer " tok)
+         (current-headers))))
