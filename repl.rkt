@@ -71,7 +71,6 @@
   (define current-port (make-parameter #f))
   (define current-tpl (make-parameter #f))
   (define current-path-prefix (make-parameter #f))
-  (define current-use-ollama (make-parameter #f))
   (define current-use-response (make-parameter #f))
   (command-line
    #:program "rkt-llm-cli"
@@ -81,7 +80,6 @@
    [("--port") p "port" (current-port (string->number p))]
    [("--tpl") p "chat template" (current-tpl p)]
    [("--prefix") p "path prefix, default to v1/" (current-path-prefix p)]
-   [("--ollama") "use ollama" (current-use-ollama #t)]
    [("--response") "use openai response api" (current-use-response #t)]
    [("--model") m "default model" (current-model m)]
    [("--context") c "default context window" (current-context-window (string->number c))]
@@ -91,7 +89,6 @@
    [("-e" "--expr") expr "expression" (eval (read (open-input-string expr)) ns)])
 
   (use-endpoint #:type (cond
-                         [(current-use-ollama) 'ollama]
                          [(current-use-response) 'oai-response]
                          [else 'oai-compat])
                 #:host (current-host)

@@ -1,7 +1,6 @@
 #lang typed/racket/base/shallow
 (require "private/main.rkt"
          (prefix-in oai: "private/oai-compat.rkt")
-         (prefix-in ollama: "private/ollama.rkt")
          (prefix-in response: "private/oai-response.rkt")
          "private/chat.rkt"
          "private/chat-template.rkt"
@@ -90,7 +89,7 @@
    (λ ()
      ((current-complete) s))))
 
-(define-type BackendType (U 'oai-compat 'ollama 'oai-response))
+(define-type BackendType (U 'oai-compat 'oai-response))
 
 (define (endpoint #:type [type : BackendType 'oai-compat] #:complete? [complete? : Boolean #f]
                   #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
@@ -112,13 +111,11 @@
 (define (new-chatter #:type [type : BackendType 'oai-compat]) : Chatter
   (cond
     [(eq? type 'oai-compat) oai:chat]
-    [(eq? type 'ollama) ollama:chat]
     [(eq? type 'oai-response) (λ (h s o) (error 'new-chatter "unsupported"))]))
 
 (define (new-completer #:type [type : BackendType 'oai-compat]) : Completer
   (cond
     [(eq? type 'oai-compat) oai:completion]
-    [(eq? type 'ollama) ollama:completion]
     [(eq? type 'oai-response) (λ (h s o) (error 'new-completer "unsupported"))]))
 
 (define (use-endpoint #:type [type : BackendType 'oai-compat]
