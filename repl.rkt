@@ -90,7 +90,8 @@
 
   (use-endpoint #:type (cond
                          [(current-use-response) 'oai-response]
-                         [else 'oai-compat])
+                         [(current-tpl) 'oai-completion]
+                         [else 'oai-chat])
                 #:host (current-host)
                 #:port (current-port)
                 #:tpl (current-tpl)

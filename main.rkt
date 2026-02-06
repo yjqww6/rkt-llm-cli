@@ -15,9 +15,7 @@
 
 (define current-interactive-chatter (make-parameter (ann (λ (h s o) (error 'interactive-chatter "no endpoint")) InteractiveChatter)))
 (define current-chatter (make-parameter (ann (λ (h s o) (error 'chatter "no endpoint")) Chatter)))
-(define current-completer (make-parameter (ann (λ (h s o) (error 'completer "no endpoint")) Completer)))
 (define default-chatter-options (make-parameter (make-Options)))
-(define default-complete-options (make-parameter (make-Options)))
 
 (define current-messages-preprocessors (make-parameter (ann '() (Listof (-> History History)))))
 (define (with-messages-preprocessor [chatter : Chatter]) : Chatter
@@ -57,12 +55,6 @@
     (new-chatter s ((current-streaming)) (current-Options))
     (newline)))
 
-(define-type Complete (-> String Void))
-(define default-complete : Complete
-  (λ (s)
-    ((current-completer) s ((current-streaming)) (current-Options))
-    (newline)))
-
 (define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String] [model : String])
   (make-Options
    #:endpoint (format "http://~a:~a/~a" host port path)
@@ -77,72 +69,48 @@
                 (λ () (custodian-shutdown-all cust))))
 
 (define current-chat (make-parameter default-chat))
-(define current-complete (make-parameter default-complete))
 
 (define (chat [s : Interactive])
   (call-with-cust
    (λ ()
      ((current-chat) s))))
 
-(define (complete [s : String])
-  (call-with-cust
-   (λ ()
-     ((current-complete) s))))
+(define-type BackendType (U 'oai-completion 'oai-chat 'oai-response))
 
-(define-type BackendType (U 'oai-compat 'oai-response))
-
-(define (endpoint #:type [type : BackendType 'oai-compat] #:complete? [complete? : Boolean #f]
+(define (endpoint #:type [type : BackendType 'oai-chat]
                   #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
                   #:prefix [prefix : (Option String) #f] #:model [model : String "default_model"])
   (make-default-options host
-                        (or port (cond
-                                   [(memq type '(oai-compat oai-response)) 8080]
-                                   [(eq? type 'ollama) 11434]))
-                        (string-append (or prefix
-                                           (cond
-                                             [(memq type '(oai-compat oai-response)) "v1/"]
-                                             [(eq? type 'ollama) ""]))
+                        (or port 8080)
+                        (string-append (or prefix "v1/")
                                        (cond
-                                         [(eq? type 'oai-compat) (if complete? "completions" "chat/completions")]
-                                         [(eq? type 'ollama) (if complete? "api/generate" "api/chat")]
+                                         [(eq? type 'oai-chat) "chat/completions"]
+                                         [(eq? type 'oai-completion) "completions"]
                                          [(eq? type 'oai-response) "responses"]))
                         model))
 
-(define (new-chatter #:type [type : BackendType 'oai-compat]) : Chatter
-  (cond
-    [(eq? type 'oai-compat) oai:chat]
-    [(eq? type 'oai-response) (λ (h s o) (error 'new-chatter "unsupported"))]))
-
-(define (new-completer #:type [type : BackendType 'oai-compat]) : Completer
-  (cond
-    [(eq? type 'oai-compat) oai:completion]
-    [(eq? type 'oai-response) (λ (h s o) (error 'new-completer "unsupported"))]))
-
-(define (use-endpoint #:type [type : BackendType 'oai-compat]
+(define (use-endpoint #:type [type : BackendType 'oai-chat]
                       #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
                       #:tpl [tpl : (Option String) #f] #:prefix [prefix : (Option String) #f]
                       #:model [model : String "default_model"])
-  (default-complete-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? #t #:model model))
-  (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:complete? (and tpl #t) #:model model))
+  (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:model model))
   (cond
     [(eq? type 'oai-response)
-     (current-completer (new-completer #:type type))
-     (current-chatter (new-chatter #:type type))
+     (current-chatter (λ (h s o) (error 'use-endpoint "no chatter for responses")))
      (current-interactive-chatter
       (let ([chat response:chat])
         (ann
          (λ (h s o)
            (chat h s (merge-Options (default-chatter-options) o)))
          InteractiveChatter)))]
-    [else
-     (current-completer (new-completer #:type type))
-     (current-chatter (new-chatter #:type type))
+    [(eq? type 'oai-chat)
+     (current-chatter oai:chat)
      (current-interactive-chatter
-      (if tpl
-          (make-default-interactive-chatter
-           (make-chat-by-template (λ (h s o) ((current-completer) h s o)) (if (string? tpl) (chat-template tpl) tpl))
-           default-complete-options)
-          (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options)))]))
+      (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))]
+    [(eq? type 'oai-completion)
+     (current-chatter (make-chat-by-template (λ (h s o) (oai:completion h s o)) (chat-template (or tpl "chatml"))))
+     (current-interactive-chatter
+      (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))]))
 
 (define-parameter current-pasted '() : (Listof (U String Image)))
 (define (clear-paste)
@@ -287,7 +255,7 @@
     (repl-loop)))
 
 (define (reroute-image [opt : Options])
-  ;; oai-compat only for now
+  ;; oai-chat only for now
   (define old-chatter (current-chatter))
   (: new-chatter Chatter)
   (define (new-chatter h s o)
