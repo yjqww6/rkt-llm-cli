@@ -17,6 +17,11 @@
   (when p
     (do-paste (list (Image (file->bytes p))) #t)))
 
+(define (upload-text)
+  (define p (get-file))
+  (when p
+    (do-paste (list (file->string p)) #t)))
+
 (define (bitmap->bytes bm)
   (define b (open-output-bytes))
   (send bm save-file b 'jpeg)

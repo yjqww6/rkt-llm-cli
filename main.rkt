@@ -174,11 +174,14 @@
 
 (define-parameter current-paste (λ () #f) : (-> (Option (Listof (U Image String)))))
 
-(: do-paste (-> (Listof (U Image String)) Boolean Void))
-(define (do-paste pasted append?)
+(define (do-paste [pasted : (U Image String (Listof (U Image String)))] [append? : Boolean #t])
+  (define p
+    (cond
+      [(list? pasted) pasted]
+      [else (list pasted)]))
   (cond
-    [append? (current-pasted (append (current-pasted) pasted))]
-    [else (current-pasted pasted)]))
+    [append? (current-pasted (append (current-pasted) p))]
+    [else (current-pasted p)]))
 
 (define (default-repl-prompt)
   (string-append
