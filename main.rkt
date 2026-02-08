@@ -234,11 +234,17 @@
 
 (define (with-output-prefix [prefix : String]) : InteractiveHook
   (λ (i o)
+    (define p
+      (cond
+        [(and (InteractiveCommon? i) (InteractiveCommon-prefix i))
+         =>
+         (λ (p) (string-append prefix p))]
+        [else prefix]))
     (values
      (cond
-       [(User? i) (struct-copy User i [prefix #:parent InteractiveCommon prefix])]
-       [(ToolResult? i) (struct-copy ToolResult i [prefix #:parent InteractiveCommon prefix])]
-       [(Redo? i) (struct-copy Redo i [prefix #:parent InteractiveCommon prefix])]
+       [(User? i) (struct-copy User i [prefix #:parent InteractiveCommon p])]
+       [(ToolResult? i) (struct-copy ToolResult i [prefix #:parent InteractiveCommon p])]
+       [(Redo? i) (struct-copy Redo i [prefix #:parent InteractiveCommon p])]
        [else i])
      o)))
 
