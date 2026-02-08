@@ -94,7 +94,7 @@
     (λ ([p : Input-Port])
       (current-history (cast (read p) History)))))
 
-(define ((default-streaming) [s : String] [type : StreamingType])
+(define ((base-streaming) [s : String] [type : StreamingType])
   (cond
     [(eq? type 'think) (void)]
     [else
@@ -139,7 +139,7 @@
    (λ ([c : Char]) (string? (checker c)))
    (make-check-streaming
     (λ ([c : Char]) (not (char-whitespace? c)))
-    (default-streaming)
+    (base-streaming)
     #:include? #t)))
 
-(define current-streaming (make-parameter default-streaming))
+(define current-streaming (make-parameter gray-cot-streaming))
