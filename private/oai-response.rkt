@@ -9,42 +9,46 @@
 
 (provide chat use-response-id)
 
-(: build-message
-   (case->
-    [Msg True -> JSExpr]
-    [Msg False -> (Listof JSExpr)]))
-(define (build-message msg single?)
-  (match-define (Msg role content tcs id _) msg)
+(: build-message (Msg -> (Listof JSExpr)))
+(define (build-message msg)
+  (match-define (Msg role content tcs id reasoning) msg)
   (define (->text-type)
     (cond
       [(string=? role "assistant") "output_text"]
       [else "input_text"]))
   (cond
     [(or (string=? role "user") (string=? role "assistant"))
-     (cond
-       [(string? content)
-        (if single? content (list (hasheq 'role role 'content (list (hasheq 'type (->text-type) 'text content)))))]
-       [else
-        (list*
-         (hash-build
-          'role role
-          'content
-          (map (λ ([item : (U String Image)])
-                 (cond
-                   [(string? item)
-                    (hasheq 'type (->text-type) 'text item)]
-                   [else
-                    (define d (string-append "data:image/jpeg;base64,"
-                                             (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
-                    (hasheq 'type "input_image" 'image_url d)]))
-               content))
-         (map (λ ([tc : ToolCall])
-                (match-define (ToolCall name arg id) tc)
-                (hasheq 'type "function_call"
-                        'name name
-                        'arguments arg
-                        'call_id id))
-              tcs))])]
+     (append
+      (if (and (string=? role "assistant") (string? reasoning) (non-empty-string? reasoning))
+          (list (hasheq 'type "reasoning"
+                        'content (list (hasheq 'type "reasoning_text" 'text reasoning))
+                        'summary '()))
+          '())
+      (list
+       (cond
+         [(string? content)
+          (hasheq 'role role 'type "message" 'content (list (hasheq 'type (->text-type) 'text content)))]
+         [else
+          (hash-build
+           'role role
+           'type "message"
+           'content
+           (map (λ ([item : (U String Image)])
+                  (cond
+                    [(string? item)
+                     (hasheq 'type (->text-type) 'text item)]
+                    [else
+                     (define d (string-append "data:image/jpeg;base64,"
+                                              (bytes->string/latin-1 (base64-encode (Image-data item) #""))))
+                     (hasheq 'type "input_image" 'image_url d)]))
+                content))]))
+      (map (λ ([tc : ToolCall])
+             (match-define (ToolCall name arg id) tc)
+             (hasheq 'type "function_call"
+                     'name name
+                     'arguments arg
+                     'call_id id))
+           tcs))]
     [(string=? role "tool")
      (assert (string? content))
      (list (hash-build
@@ -59,7 +63,7 @@
   (let loop : (Listof JSExpr) ([h msgs])
     (cond
       [(null? h) '()]
-      [else (append (build-message (car h) #f) (loop (cdr h)))])))
+      [else (append (build-message (car h)) (loop (cdr h)))])))
 
 (define (rewrite-tool [tool : JSExpr]) : JSExpr
   (match tool
@@ -71,7 +75,7 @@
 (define (build-oai-response-request [msgs : (Listof Msg)] [prev-resp-id : (Option String)] [options : Options]) : (Immutable-HashTable Symbol JSExpr)
   (define input
     (match msgs
-      [(list msg) (build-message msg #t)]
+      [(list msg) (build-message msg)]
       [_ (build-messages msgs)]))
   (hash-build
    'model (Options-model options)
