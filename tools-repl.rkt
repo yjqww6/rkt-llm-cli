@@ -97,6 +97,38 @@
                                                   (current-messages-preprocessors))])
     (repl)))
 
+(define (query-arg-type [tool : Tool] [param : Symbol])
+  (match (json-ref (Tool-desc tool) 'function 'parameters 'properties param 'type)
+    [(or "string" "str" "text" "varchar" "char" "enum") 'str]
+    [_ 'json]))
+
+(define (with-step-tools [repl : (-> Void)])
+  (define old-callback (current-tool-callback))
+  (define (system-rewrite [s : (Option String)]) : (Option String)
+    (make-step-system-template (map Tool-desc (current-tools)) s))
+  (parameterize ([current-tool-parser (λ ([s : String])
+                                        (parse-step-response
+                                         s
+                                         (λ ([name : String] [param : Symbol]) : (U 'str 'json)
+                                           (cond
+                                             [(memf (λ ([t : Tool]) (string=? name (Tool-name t))) (current-tools))
+                                              =>
+                                              (λ (tools)
+                                                (query-arg-type (car tools) param))]
+                                             [else (error 'default-tool-callback "~a not found" name)]))))]
+                 [current-interactive-hooks (cons
+                                             (ann
+                                              (λ (i o)
+                                                (values i (struct-copy Options o [tools '()])))
+                                              InteractiveHook)
+                                             (current-interactive-hooks))]
+                 [current-messages-preprocessors (cons
+                                                  (compose1
+                                                   (λ ([s : History]) (map (tool->user make-step-response) s))
+                                                   (λ ([s : History]) (map-system system-rewrite s)))
+                                                  (current-messages-preprocessors))])
+        (repl)))
+
 (define (with-mistral-tools [repl : (-> Void)])
   (define (post [m : Msg])
     (match m
@@ -133,7 +165,8 @@
      (λ ()
        (when manual
          (call/shift
-          (λ (k) (cond [(eq? manual 'mistral) (with-mistral-tools k)]
+          (λ (k) (cond [(eq? manual 'step3) (with-step-tools k)]
+                       [(eq? manual 'mistral) (with-mistral-tools k)]
                        [else (with-nous-tools k)]))))
        (when auto?
          (call/shift

@@ -50,6 +50,23 @@
     (write-string prefill s))
   (get-output-string s))
 
+(define (step3 [messages : History] [o : Options])
+  (define-values (his prefill) (split-prefill messages))
+  (define s (open-output-string))
+  (for ([msg (in-list his)])
+    (match-define (struct* Msg ([role role] [content content])) msg)
+    (define r
+      (cond
+        [(string=? role "tool") "tool_response"]
+        [(string=? role "assistant") "assistant\n<think>"]))
+    (write-string (format "<|im_start|>~a\n" r) s)
+    (write-content content s)
+    (write-string "<|im_end|>\n" s))
+  (write-string "<|im_start|>assistant\n<think>\n" s)
+  (when prefill
+    (write-string prefill s))
+  (get-output-string s))
+
 (define (gemma [messages : History] [o : Options]) : String
   (define-values (h prefill) (split-prefill messages))
   (define s (open-output-string))
@@ -148,6 +165,7 @@
   (define tpl
     (match name
       ["chatml" chatml]
+      ["step3" step3]
       ["gemma" gemma]
       ["mistral" mistral]
       ["kimi" kimi]))

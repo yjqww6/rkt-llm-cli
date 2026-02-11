@@ -50,6 +50,81 @@ TPL
 (define (make-nous-response [response : String])
   (string-append "<tool_response>" response "</tool_response>"))
 
+(define (make-step-system-template [tools : (Listof JSExpr)] [system : (Option String)])
+  (define prefix #<<TPL
+# Tools
+
+You have access to the following functions in JSONSchema format:
+
+
+<tools>
+TPL
+    )
+  (define suffix #<<TPL
+
+</tools>
+
+If you choose to call a function ONLY reply in the following format with NO suffix:
+
+<tool_call>
+<function=example_function_name>
+<parameter=example_parameter_1>
+value_1
+</parameter>
+<parameter=example_parameter_2>
+This is the value for the second parameter
+that can span
+multiple lines
+</parameter>
+</function>
+</tool_call>
+
+<IMPORTANT>
+Reminder:
+- Function calls MUST follow the specified format: an inner <function=...>
+...
+</function> block must be nested within <tool_call>
+...
+</tool_call> XML tags
+- Required parameters MUST be specified
+</IMPORTANT>
+TPL
+    )
+  (cond
+    [(null? tools) system]
+    [else
+     (string-append
+      (if system system "")
+      (if system "\n\n" "")
+      prefix
+      (string-join (map jsexpr->string tools) "\n" #:before-first "\n")
+      suffix)]))
+
+(define (parse-step-response [response : String] [repair : (String Symbol -> (U 'str 'json))]) : (Listof ToolCall)
+  (match (regexp-match #px"<tool_call>\\s*<function=([^>]+)>(.*?)</function>\\s*</tool_call>" response)
+    [(list _ function-name inner-content)
+     #:when (and function-name inner-content)
+     (define params
+       (regexp-match* #px"<parameter=([^>]+)>\n(.*?)\n</parameter>" inner-content))
+     (define parameters
+       (for/fold ([h : (HashTable Symbol JSExpr) (hasheq)])
+                 ([param (in-list params)])
+         (match-define (list _ p a)
+           (regexp-match #px"<parameter=([^>]+)>\n(.*?)\n</parameter>" param))
+         (assert (and (string? p) (string? a)))
+         (define k (string->symbol p))
+         (define v
+           (case (repair function-name k)
+             [(num) (string->number a)]
+             [(str) a]
+             [(json) (string->jsexpr a)]))
+         (hash-set h k v)))
+     (list (ToolCall function-name (jsexpr->string parameters) ""))]
+    [_ '()]))
+
+(define (make-step-response [response : String])
+  (string-append "<tool_response>\n" response "\n</tool_response>"))
+
 (define (parse-mistral-toolcall [response : String])
   (define (submatch [px : Regexp]) : (Listof ToolCall)
     (match (regexp-match px response)
