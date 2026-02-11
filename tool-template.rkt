@@ -115,9 +115,9 @@ TPL
          (define k (string->symbol p))
          (define v
            (case (repair function-name k)
-             [(num) (string->number a)]
              [(str) a]
-             [(json) (string->jsexpr a)]))
+             [(json) (with-handlers ([exn:fail:read? (λ (e) a)])
+                       (string->jsexpr a))]))
          (hash-set h k v)))
      (list (ToolCall function-name (jsexpr->string parameters) ""))]
     [_ '()]))
