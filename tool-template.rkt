@@ -5,6 +5,16 @@
          "private/types.rkt")
 (provide (all-defined-out))
 
+(define (match-all [rx : PRegexp] [str : String]) : (Listof (Listof String))
+  (define matches (regexp-match* rx str))
+  (cond
+    [(not matches) '()]
+    [else
+     (for/list ([m (in-list matches)])
+       (match-define (cons _ r) (regexp-match rx m))
+       (assert (andmap string? r))
+       r)]))
+
 (define (make-nous-system-template [tools : (Listof JSExpr)] [system : (Option String)])
   (define prefix #<<TPL
 # Tools
@@ -37,15 +47,10 @@ TPL
       suffix)]))
 
 (define (parse-nous-toolcall [response : String]) : (Listof ToolCall)
-  (match (regexp-match* #px"<tool_call>\\s*(.*?)\\s*</tool_call>" response #:match-select cadr)
-    [(list call ...)
-     (map
-      (λ ([call : String])
-        (match (string->jsexpr call)
-          [(hash* ['name (? string? name)] ['arguments arguments])
-           (ToolCall name (jsexpr->string arguments) "")]))
-      call)]
-    [else '()]))
+  (for/list ([call (in-list (match-all #px"<tool_call>\\s*(.*?)\\s*</tool_call>" response))])
+    (match (string->jsexpr (car call))
+      [(hash* ['name (? string? name)] ['arguments arguments])
+       (ToolCall name (jsexpr->string arguments) "")])))
 
 (define (make-nous-response [response : String])
   (string-append "<tool_response>" response "</tool_response>"))
@@ -104,14 +109,10 @@ TPL
   (match (regexp-match #px"<tool_call>\\s*<function=([^>]+)>(.*?)</function>\\s*</tool_call>" response)
     [(list _ function-name inner-content)
      #:when (and function-name inner-content)
-     (define params
-       (regexp-match* #px"<parameter=([^>]+)>\n(.*?)\n</parameter>" inner-content))
      (define parameters
        (for/fold ([h : (HashTable Symbol JSExpr) (hasheq)])
-                 ([param (in-list params)])
-         (match-define (list _ p a)
-           (regexp-match #px"<parameter=([^>]+)>\n(.*?)\n</parameter>" param))
-         (assert (and (string? p) (string? a)))
+                 ([param (in-list (match-all #px"<parameter=([^>]+)>\n(.*?)\n</parameter>" inner-content))])
+         (match-define (list p a) param)
          (define k (string->symbol p))
          (define v
            (case (repair function-name k)
