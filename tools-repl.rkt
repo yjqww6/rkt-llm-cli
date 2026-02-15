@@ -55,10 +55,10 @@
 (: default-tool-callback ToolCallback)
 (define (default-tool-callback name arg)
   (cond
-    [(memf (λ ([t : Tool]) (string=? name (Tool-name t))) (current-tools))
+    [(findf (λ ([t : Tool]) (string=? name (Tool-name t))) (current-tools))
      =>
-     (λ (tools)
-       ((Tool-callback (car tools)) arg))]
+     (λ (tool)
+       ((Tool-callback tool) (fix-arguments tool arg)))]
     [else (error 'default-tool-callback "~a not found" name)]))
 
 (define ((tool->user [maker : (-> String String)]) [msg : Msg])
@@ -101,6 +101,18 @@
   (match (json-ref (Tool-desc tool) 'function 'parameters 'properties param 'type)
     [(or "string" "str" "text" "varchar" "char" "enum") 'str]
     [_ 'json]))
+
+(define (fix-arguments [tool : Tool] [arguments : String]) : String
+  (define args (string->jsexpr arguments))
+  (cond
+    [(hash? args)
+     (jsexpr->string
+      (for/hasheq : (HashTable Symbol JSExpr) ([(k v) (in-hash args)])
+        (if (and (eq? (query-arg-type tool k) 'str)
+                 (not (string? v)))
+            (values k (jsexpr->string v))
+            (values k v))))]
+    [else (error 'fix-arguments "invalid arguments")]))
 
 (define (with-step-tools [repl : (-> Void)])
   (define old-callback (current-tool-callback))
