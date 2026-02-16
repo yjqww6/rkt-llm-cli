@@ -98,8 +98,9 @@
     (repl)))
 
 (define (query-arg-type [tool : Tool] [param : Symbol])
-  (match (json-ref (Tool-desc tool) 'function 'parameters 'properties param 'type)
-    [(or "string" "str" "text" "varchar" "char" "enum") 'str]
+  (match (json-ref (Tool-desc tool) 'function 'parameters 'properties param)
+    [(hash 'type (or "string" "str" "text" "varchar" "char" "enum") #:open) 'str]
+    [(hash 'anyOf (list (hash 'type "string") (hash 'type "null")) #:open) 'str]
     [_ 'json]))
 
 (define (fix-arguments [tool : Tool] [arguments : String]) : String
