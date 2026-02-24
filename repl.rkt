@@ -5,6 +5,8 @@
          racket/list
          racket/port
          racket/system
+         racket/string
+         racket/date
          "main.rkt"
          "tools.rkt"
          "tools-repl.rkt")
@@ -26,6 +28,16 @@
   (define b (open-output-bytes))
   (send bm save-file b 'jpeg)
   (get-output-bytes b))
+
+(define (set-current-date)
+  (define D "Current Date: ")
+  (define d (string-append D (date->string (current-date))))
+  (cond
+    [(current-system)
+     =>
+     (λ (s) (current-system (if (string-contains? s D) s (string-append d "\n" s))))]
+    [(not (current-system))
+     (current-system d)]))
 
 (define clip
   (let ([c #f])
