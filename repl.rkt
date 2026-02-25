@@ -32,12 +32,13 @@
 (define (set-current-date)
   (define D "Current Date: ")
   (define d (string-append D (date->string (current-date))))
+  (define d2 (string-append d "\n" d))
   (cond
     [(current-system)
      =>
-     (λ (s) (current-system (if (string-contains? s D) s (string-append d "\n" s))))]
+     (λ (s) (current-system (if (string-contains? s D) s (string-append d2 "\n" s))))]
     [(not (current-system))
-     (current-system d)]))
+     (current-system d2)]))
 
 (define clip
   (let ([c #f])
