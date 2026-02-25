@@ -50,7 +50,10 @@
    'max_tokens (Options-max-tokens options)
    'stop (null->nullable (Options-stop options))
    'grammar (Options-grammar options)
-   'model (Options-model options)))
+   'model (Options-model options)
+   'chat_template_kwargs (if (is-null? (Options-enable-thinking options))
+                             'null
+                             (hasheq 'enable_thinking (Options-enable-thinking options)))))
 
 (define (build-chat-body [messages : History] [options : Options])
   (jsexpr->bytes

@@ -99,7 +99,6 @@
    [("--prefix") p "path prefix, default to v1/" (current-path-prefix p)]
    [("--response") "use openai response api" (current-use-response #t)]
    [("--model") m "default model" (current-model m)]
-   [("--context") c "default context window" (current-context-window (string->number c))]
    #:multi
    [("-t" "--require") file "(require (file \"<file>\"))" (namespace-require (list 'file file) ns)]
    [("-l" "--lib") file "(require (lib \"<path>\"))" (namespace-require (list 'lib file) ns)]

@@ -159,14 +159,13 @@
   [max-tokens : (Nullable Integer)]
   [stop : (Listof String)]
   [grammar : (Nullable String)]
+  [enable-thinking : (Nullable Boolean)]
   ;; sampling
   [temperature : (Nullable Flonum)]
   [top-k : (Nullable Positive-Integer)]
   [top-p : (Nullable Flonum)]
   [min-p : (Nullable Flonum)]
-  [repeat-penalty : (Nullable Flonum)]
-  ;; ollama
-  [context-window : (Nullable Exact-Positive-Integer)])
+  [repeat-penalty : (Nullable Flonum)])
 
 (define-parameter current-reasoning-delta 'reasoning_content : Symbol)
 
