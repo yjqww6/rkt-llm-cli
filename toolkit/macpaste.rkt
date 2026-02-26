@@ -4,9 +4,9 @@
   (require racket/gui/base)
   (require ffi/unsafe/objc ffi/unsafe/nsalloc ffi/unsafe/atomic
            ffi/unsafe ffi/unsafe/nsstring)
-  (provide do-paste image-type?)
+  (provide do-paste image-type? current-normalize-image)
 
-  (import-class NSPasteboard NSAttributedString)
+  (import-class NSPasteboard NSAttributedString NSImage NSBitmapImageRep)
   (define _NSUInteger _ulong)
   (define-cstruct _NSRange ([location _NSUInteger]
                             [length _NSUInteger]))
@@ -60,6 +60,7 @@
   (define JPEG "public.jpeg")
   (define WEBP "org.webmproject.webp")
   (define SVG "public.svg-image")
+  (define AVIF "public.avif")
   (define TEXT "public.utf8-plain-text")
   (define FLAT-RTFD "com.apple.flat-rtfd")
 
@@ -73,6 +74,23 @@
       (define result (make-bytes len))
       (memcpy result bstr len)
       result))
+
+  (define (handle-file-type file-type data)
+    (cond
+      [(not data) '()]
+      [(not (current-normalize-image))
+       (list (vector file-type (get-data-bytes data)))]
+      [(member file-type basic-image-types)
+       (list (vector file-type (get-data-bytes data)))]
+      [(member file-type (list TIFF WEBP AVIF))
+       (define rep (tell (tell NSBitmapImageRep alloc) initWithData: data))
+       (define png (and rep (tell rep representationUsingType: #:type _NSUInteger 4 properties: #f)))
+       (if png (list (vector PNG (get-data-bytes png))) '())]
+      [(member file-type (list SVG))
+       (list (vector file-type (get-data-bytes data)))]
+      [else '()]))
+
+  (define current-normalize-image (make-parameter #t))
 
   (define (handle-rtfd data)
     (define attr-str (tell (tell NSAttributedString alloc) initWithRTFD: data documentAttributes: #f))
@@ -90,8 +108,8 @@
             (define file-wrapper (tell attachment fileWrapper))
             (define b
               (cond
-                [content (list (vector file-type (get-data-bytes content)))]
-                [file-wrapper (list (vector file-type (get-data-bytes (tell file-wrapper regularFileContents))))]
+                [content (handle-file-type file-type content)]
+                [file-wrapper (handle-file-type file-type (tell file-wrapper regularFileContents))]
                 [else '()]))
             (cond
               [(string=? str (string (integer->char #xfffc))) ; object replacement character
@@ -127,20 +145,23 @@
                [(member TEXT types)
                 (tell #:type _NSString item stringForType: #:type _NSString TEXT)]
                [else '()]))])))))
-  (define image-types
+  (define basic-image-types
     (list (cons PNG 'png)
-          (cons JPEG 'jpeg)
-          (cons WEBP 'webp)
-          (cons SVG 'svg)))
-  (define (image-type? type)
-    (assoc type image-types)))
+          (cons JPEG 'jpeg)))
+  (define more-image-types
+    (list (cons WEBP 'webp)
+          (cons SVG 'svg)
+          (cons AVIF 'avif)
+          (cons TIFF 'tiff)))
+  (define image-types (append basic-image-types more-image-types))
+  (define (image-type? img)
+    (assoc img image-types)))
 
 (require "../private/main.rkt" 'clipboard (only-in "../main.rkt" current-paste)
          racket/class racket/draw)
-(provide macpaste current-accpet-image-types current-convert-images)
+(provide macpaste current-accpet-image-types current-normalize-image)
 
-(define current-accpet-image-types (make-parameter #f))
-(define current-convert-images (make-parameter #f))
+(define current-accpet-image-types (make-parameter '(png jpeg)))
 
 (define (macpaste)
   (define contents (do-paste))
@@ -156,15 +177,8 @@
            (cond
              [(current-accpet-image-types) => (λ (t) (memq (cdr p) t))]
              [else #t])
-           (cond
-             [(or (memq (cdr p) '(png jpeg)) (not (current-convert-images)))
-              (Image (vector-ref item 1))]
-             [else
-              (define bm (make-object bitmap% 1 1))
-              (define out (open-output-bytes))
-              (and (send bm load-file (open-input-bytes (vector-ref item 1)))
-                   (send bm save-file out 'png)
-                   (Image (get-output-bytes out)))])))]
+           (Image (vector-ref item 1))))]
        [else #f]))))
 
 (current-paste macpaste)
+(module+ main (macpaste))
