@@ -80,7 +80,7 @@
       [(not data) '()]
       [(not (current-normalize-image))
        (list (vector file-type (get-data-bytes data)))]
-      [(member file-type basic-image-types)
+      [(assoc file-type basic-image-types)
        (list (vector file-type (get-data-bytes data)))]
       [(member file-type (list TIFF WEBP AVIF))
        (define rep (tell (tell NSBitmapImageRep alloc) initWithData: data))
