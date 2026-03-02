@@ -7,7 +7,8 @@
          racket/match
          racket/list
          racket/string
-         racket/port)
+         racket/port
+         typed/racket/date)
 (provide (all-defined-out)
          (all-from-out "private/main.rkt")
          (all-from-out "private/chat.rkt")
@@ -286,3 +287,18 @@
   (current-headers
    (cons (string-append "Authorization: Bearer " tok)
          (current-headers))))
+
+(define (set-current-date)
+  (define ds (format "Current Date: ~a" (date->string (current-date))))
+  (current-system (format "~a\n~a\n~a" ds ds (or (current-system) ""))))
+
+(define (with-current-date)
+  (define old-chatter (current-interactive-chatter))
+  (: new-chatter InteractiveChatter)
+  (define (new-chatter h s o)
+    (parameterize ([current-system (current-system)])
+      (set-current-date)
+      (old-chatter h s o)))
+  (parameterize ([current-interactive-chatter new-chatter]
+                 [current-repl-prompt (make-prefix-repl-prompt "DATE")])
+    (repl-loop)))
