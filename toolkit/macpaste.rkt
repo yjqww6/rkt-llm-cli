@@ -84,6 +84,8 @@
        (list (vector file-type (get-data-bytes data)))]
       [(member file-type (list TIFF WEBP AVIF))
        (define rep (tell (tell NSBitmapImageRep alloc) initWithData: data))
+       (when rep
+         (tell rep autorelease))
        (define png (and rep (tell rep representationUsingType: #:type _NSUInteger 4 properties: #f)))
        (if png (list (vector PNG (get-data-bytes png))) '())]
       [(member file-type (list SVG))
@@ -97,6 +99,7 @@
     (cond
       [(not attr-str) '()]
       [else
+       (tell attr-str autorelease)
        (for/list ([(attrs rng) (in-attr-str attr-str)])
          (define sub-attr-str (tell attr-str attributedSubstringFromRange: #:type _NSRange rng))
          (define str (tell #:type _NSString sub-attr-str string))
