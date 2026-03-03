@@ -2,6 +2,7 @@ from aiohttp import web
 import asyncio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamable_http_client, StreamableHTTPTransport
 from pydantic_core import to_jsonable_python
 import argparse, os, json
 
@@ -87,25 +88,40 @@ async def init_app(server_list):
 
     sessions = []
     stdio_managers = []
+    http_managers = []
     session_managers = []
     tool_to_session = {}
     cached_tools = []
 
     # Initialize all MCP sessions and cache the tool list
-    for params in server_list:
-        manager = stdio_client(params)
-        try:
-            read, write = await manager.__aenter__()
-        except Exception as e:
-            print(f"Failed to start session for {params}: {e}")
-            continue
-        stdio_managers.append(manager)
-        session = ClientSession(read, write)
+    for server_config in server_list:
+        # Check if this is a StreamableHTTPTransport
+        if isinstance(server_config, StreamableHTTPTransport):
+            # Use StreamableHTTPTransport for HTTP-based MCP servers
+            manager = streamable_http_client(url=server_config.url)
+            try:
+                read, write, _ = await manager.__aenter__()
+            except Exception as e:
+                print(f"Failed to start HTTP session for {server_config.url}: {e}")
+                continue
+            http_managers.append(manager)
+            session = ClientSession(read, write)
+        else:
+            # Use Stdio transport for stdio-based MCP servers (StdioServerParameters)
+            manager = stdio_client(server_config)
+            try:
+                read, write = await manager.__aenter__()
+            except Exception as e:
+                print(f"Failed to start session for {server_config}: {e}")
+                continue
+            stdio_managers.append(manager)
+            session = ClientSession(read, write)
+
         se = await session.__aenter__()
         session_managers.append(se)
         await session.initialize()
         sessions.append(session)
-        
+
         # Get the current session's tool list and cache it
         try:
             tools = await session.list_tools()
@@ -118,15 +134,19 @@ async def init_app(server_list):
                 tool_to_session[tool_name] = session
             cached_tools.extend(tools_list)
         except Exception as e:
-            print(f"Error listing tools for session {params}: {e}")
+            print(f"Error listing tools for session {server_config}: {e}")
             await session.close()
-            stdio_managers.remove(manager)
+            if isinstance(server_config, StreamableHTTPTransport):
+                http_managers.remove(manager)
+            else:
+                stdio_managers.remove(manager)
             sessions.remove(session)
             continue
 
     # Store session information and cached tool list in the application object
     app['mcp_sessions'] = sessions
     app['stdio_managers'] = stdio_managers
+    app['http_managers'] = http_managers
     app['tool_to_session'] = tool_to_session
     app['cached_tools'] = [convert_to_openai_tool(tool) for tool in cached_tools]
 
@@ -145,6 +165,8 @@ async def init_app(server_list):
         for se in session_managers:
             await se.__aexit__(None, None, None)
         for manager in stdio_managers:
+            await manager.__aexit__(None, None, None)
+        for manager in http_managers:
             await manager.__aexit__(None, None, None)
 
 if __name__ == '__main__':
