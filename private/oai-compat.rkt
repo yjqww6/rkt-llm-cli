@@ -103,9 +103,10 @@
        (match content
          [(? string?) content]
          ['null ""]))
-     (when (string? reasoning-content)
+     (when (non-empty-string? reasoning-content)
        (streaming reasoning-content 'think))
-     (streaming str-content 'content)
+     (when (non-empty-string? content)
+       (streaming str-content 'content))
      (Msg "assistant" str-content
           (map (λ ([tc : JSExpr]) ToolCall
                  (match tc
@@ -116,7 +117,7 @@
                     (ToolCall name arguments id)]))
                tool-calls)
           #f
-          (and (string? reasoning-content) reasoning-content))]))
+          (and (non-empty-string? reasoning-content) reasoning-content))]))
 
 (define (on-event-stream [port : Input-Port] [handler : (-> JSExpr Void)])
   (let loop : Void ()
@@ -145,12 +146,12 @@
     (log-verbose j)
     (define delta (json-ref j 'choices 0 'delta))
     (match delta
-      [(hash* ['content (? string? content)])
+      [(hash* ['content (? non-empty-string? content)])
        (write-string content whole-content)
        (streaming content 'content)]
       [_ (void)])
     (match delta
-      [(hash* [(current-reasoning-delta) (? string? content)])
+      [(hash* [(current-reasoning-delta) (? non-empty-string? content)])
        (write-string content reasoning-content)
        (streaming content 'think)]
       [_ (void)])
