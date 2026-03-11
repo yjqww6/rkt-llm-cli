@@ -288,17 +288,20 @@
    (cons (string-append "Authorization: Bearer " tok)
          (current-headers))))
 
-(define (set-current-date)
+(define (make-system-with-date [system : (Option String)])
   (define ds (format "Current Date: ~a" (date->string (current-date))))
-  (current-system (format "~a\n~a\n~a" ds ds (or (current-system) ""))))
+  (format "~a\n~a" ds (or (current-system) "")))
 
-(define (with-current-date)
-  (define old-chatter (current-interactive-chatter))
-  (: new-chatter InteractiveChatter)
-  (define (new-chatter h s o)
-    (parameterize ([current-system (current-system)])
-      (set-current-date)
-      (old-chatter h s o)))
-  (parameterize ([current-interactive-chatter new-chatter]
+(define (set-current-date)
+  (current-system (make-system-with-date (current-system))))
+
+(define (with-date)
+  (define (system-rewrite [h : History])
+    (match h
+      [(cons (struct* Msg ([role "system"] [content content])) r)
+       (assert (string? content))
+       (cons (make-system (make-system-with-date content)) r)]
+      [_ (cons (make-system (make-system-with-date #f)) h)]))
+  (parameterize ([current-messages-preprocessors (cons system-rewrite (current-messages-preprocessors))]
                  [current-repl-prompt (make-prefix-repl-prompt "DATE")])
     (repl-loop)))
