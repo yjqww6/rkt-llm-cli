@@ -67,16 +67,17 @@
     (write-string prefill s))
   (get-output-string s))
 
-(define (gemma [messages : History] [o : Options]) : String
+(define (gemma4 [messages : History] [o : Options]) : String
   (define-values (h prefill) (split-prefill messages))
   (define s (open-output-string))
-  (for ([msg (in-list (inject-system-to-user h))])
+  (for ([msg (in-list h)])
     (match-define (struct* Msg ([role role] [content content])) msg)
     (define mapped-role (if (string=? role "assistant") "model" role))
-    (write-string (format "<start_of_turn>~a\n" mapped-role) s)
+    (write-string (format "<|turn>~a\n" mapped-role) s)
     (write-content content s)
-    (write-string "<end_of_turn>\n" s))
-  (write-string "<start_of_turn>model\n" s)
+    (write-string "<turn|>\n" s))
+  (write-string "<|turn>model\n" s)
+  (write-string "<|channel>thought\n<channel|>" s)
   (when prefill
     (write-string prefill s))
   (get-output-string s))
@@ -166,7 +167,7 @@
     (match name
       ["chatml" chatml]
       ["step3" step3]
-      ["gemma" gemma]
+      ["gemma4" gemma4]
       ["mistral" mistral]
       ["kimi" kimi]))
   (cond
