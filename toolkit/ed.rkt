@@ -200,7 +200,7 @@
        (case-view
         @idx-role
         [("assistant")
-         (tabs '("content" "reason")
+         (tabs '("content" "reason" "tool-call")
                (λ (type _ sel)
                  (when (eq? type 'select)
                    (:= @tab sel)))
@@ -218,6 +218,17 @@
                                  (λ (e) (if e
                                             (get-text! (or (Msg-reasoning-content (car e)) "") (cdr e) 'reason)
                                             #f))))]
+                [("tool-call")
+                 (list-view (obs-map
+                             @idx-entry
+                             (λ (e) (Msg-tool-calls (car e))))
+                            (λ (tc _)
+                              (define t (new text%))
+                              (send t insert (ToolCall-arguments tc))
+                              (send t lock #t)
+                              (vpanel
+                               (text (ToolCall-name tc))
+                               (editor-canvas t))))]
                 [else (editor-canvas)])
                #:selection @tab)]
         [else
