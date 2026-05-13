@@ -158,7 +158,7 @@
         (define user
           (make-user (append (if (null? pasted)
                                  '()
-                                 (append '("```") pasted '("```")))
+                                 (append '("```\n") pasted '("```\n")))
                              (if (string? prompt) (list prompt) prompt))))
         (define base (current-history))
         (chat (User prefix user))

@@ -1,15 +1,20 @@
-#lang racket/base
-(require racket/match racket/list racket/class racket/gui/base framework "../main.rkt")
-(provide edit input redo/input edit-history input-history prev-input)
+#lang racket
+(require racket/gui/base
+         racket/gui/easy
+         racket/gui/easy/operator
+         rkt-llm-cli)
+
+(provide edit-history input-history)
 
 (define (get-content text)
   (let loop ([s (send text find-first-snip)]
              [out (open-output-string)])
     (define (flush c)
       (define str (get-output-string out))
-      (if (= 0 (string-length str))
-          c
-          (cons str c)))
+      (cond
+        [(= 0 (string-length str)) c]
+        [(null? c) str]
+        [else (cons str c)]))
     (cond
       [(not s) (flush '())]
       [(is-a? s image-snip%)
@@ -33,153 +38,215 @@
                            (make-object image-snip% (open-input-bytes (Image-data c)))
                            (send ed last-position))]))]))
 
-(define (edit [init #f])
-  (define f (new dialog%
-                 [label "Editor"]
-                 [width 480]
-                 [height 640]
-                 [style '(resize-border close-button)]))
-  (define c (new editor-canvas% [parent f]))
-  (define t (new text%))
-  (when init
-    (load-content t init))
+(define (make-keymap)
   (define k (new keymap%))
-  (keymap:setup-global k)
   (add-editor-keymap-functions k)
   (add-text-keymap-functions k)
   ((current-text-keymap-initializer) k)
-  (send t set-keymap k)
-  (send c set-editor t)
-  (send t set-max-undo-history 100)
-  (define submitted? #f)
-
-  (gui-utils:ok/cancel-buttons
-   f
-   (λ (b e) (set! submitted? #t) (send f show #f))
-   (λ (b e) (send f show #f)))
-  (send f show #t)
-  (and submitted?
-       (get-content t)))
-
-(define prev-input (make-parameter #f))
-
-(define (input [init #f])
-  (define content (edit init))
-  (when content
-    (prev-input content)
-    (repl-chat content)))
-
-(define (redo/input)
-  (match (current-history)
-    [(list old ... (and u (struct* Msg ([role "user"] [content c]))) _)
-     (define new-content (edit c))
-     (when new-content
-       (define new-history
-         (parameterize ([current-history old])
-           (repl-chat new-content)
-           (current-history)))
-       (unless (eq? new-history old)
-         (current-history new-history)))]))
+  k)
 
 (define (edit-history history)
-  (define f (new dialog%
-                 [label "Editor"]
-                 [width 480]
-                 [height 640]
-                 [style '(resize-border close-button)]))
-  (define h (new horizontal-pane% [parent f]))
-  (define on-select
-    (λ (l e)
-      (cond
-        [(send l get-selection)
-         =>
-         (λ (s)
-           (send c set-editor (hash-ref texts (send l get-data s))))])))
-  (define v (new vertical-pane% [parent h] [stretchable-width #f] [min-width 100]))
-  (define l (new list-box% [label ""] [choices '()] [parent v] [callback on-select]))
-  (define c (new editor-canvas% [parent h]))
-  (define r (new choice% [label "Role"] [choices '("user" "assistant")] [parent v]))
-  (define texts (make-weak-hasheq))
-  
-  (define k (new keymap%))
-  (keymap:setup-global k)
-  (add-editor-keymap-functions k)
-  (add-text-keymap-functions k)
-  ((current-text-keymap-initializer) k)
-  
-  (define (new-text! msg)
-    (define t (new text%))
-    (send t set-keymap k)
-    (send t set-max-undo-history 100)
-    (load-content t (Msg-content msg))
-    (hash-set! texts msg t))
-  
-  (define (adjust f)
-    (define n (send l get-number))
-    (define history
-      (for/list ([i (in-range (send l get-number))])
-        (send l get-data i)))
-    (define-values (new-history new-s) (f history (send l get-selection)))
-    (send l clear)
-    (for ([msg (in-list new-history)])
-      (send l append (Msg-role msg) msg))
-    (when new-s
-      (send l select new-s)
-      (on-select l #f)))
-  
-  (define (make-msg)
-    (define msg
-      (match (send r get-string-selection)
-        ["user" (make-user "")]
-        ["assistant" (make-assistant "")]))
-    (new-text! msg)
-    msg)
-  
-  (new button% [label "Insert Before"] [parent v]
-       [callback (λ (b e)
-                   (adjust (λ (h s)
-                             (cond
-                               [(not s) (values (cons (make-msg) h) 0)]
-                               [else
-                                (define-values (a b) (split-at h s))
-                                (values (append a (list (make-msg)) b) s)]))))])
-  
-  (new button% [label "Insert After"] [parent v]
-       [callback (λ (b e)
-                   (adjust (λ (h s)
-                             (cond
-                               [(not s) (values (append h (list (make-msg))) (length h))]
-                               [else
-                                (define-values (a b) (split-at h (+ s 1)))
-                                (values (append a (list (make-msg)) b) (+ s 1))]))))])
-  (new button% [label "Delete"] [parent v]
-       [callback (λ (b e)
-                   (define s (send l get-selection))
-                   (when s (send l delete s)))])
+  (define/obs @history
+    (for/vector #:length (length history) ([msg (in-list history)])
+      (cons msg (make-hasheq))))
 
-  (define ok? #f)
-  (define-values (ok-button cancel-button)
-    (gui-utils:ok/cancel-buttons
-     f
-     (λ (b e) (set! ok? #t) (send f show #f))
-     (λ (b e) (send f show #f))
-     "OK"
-     "Cancel"))
+  (define/obs @new-role "user")
+  (define/obs @idx (if (null? history) #f (sub1 (length history))))
+
+  (define @idx-entry (obs-combine
+                      (λ (h i) (and i (vector-ref h i)))
+                      @history @idx))
+
+  (define @idx-role (obs-map
+                     @idx-entry
+                     (λ (e) (and e (Msg-role (car e))))))
+
+  (define k (make-keymap))
+
+  (define (get-text! content h key)
+    (hash-ref! h key
+               (λ ()
+                 (define t (new text%))
+                 (send t set-keymap k)
+                 (send t set-max-undo-history 100)
+                 (load-content t content)
+                 (send t set-modified #f)
+                 t)))
+
+  (define (entry->row entry)
+    (define (content->label content)
+      (define (->label str)
+        (define cap 20)
+        (if (< (string-length str) cap) str (string-append (substring str 0 cap) "...")))
+      (cond
+        [(string? content) (->label content)]
+        [else
+         (->label (string-join (filter string? content)))]))
+    (define msg (car entry))
+    (vector (Msg-role msg)
+            (content->label (Msg-content msg))))
+
+  (define (entry->msg entry)
+    (define-syntax with
+      (syntax-rules ()
+        [(_ Id Expr) Expr]
+        [(_ Id Expr Body0 Body ...)
+         (with Id (let ([Id Expr])
+                    Body0)
+               Body ...)]))
+    (define-syntax-rule (check-text msg t expr)
+      (cond
+        [(hash-ref (cdr entry) 't (λ () #f))
+         =>
+         (λ (t) (cond
+                  [(send t is-modified?)
+                   (send t set-modified #f)
+                   expr]
+                  [else msg]))]
+        [else msg]))
+    (with
+     msg (car entry)
+     (check-text msg content (struct-copy Msg msg [content (get-content content)]))
+     (check-text msg reason (struct-copy Msg msg [reasoning-content (get-content reason)]))))
+
+  (define (refresh-entry!)
+    (obs-update!
+     @history
+     (λ (history)
+       (for/vector #:length (vector-length history) ([entry (in-vector history)])
+         (cons (entry->msg entry) (cdr entry))))))
+
+  (define ((insert-one! f))
+    (define history (obs-peek @history))
+    (define idx (obs-peek @idx))
+    (define role (obs-peek @new-role))
+    (define (new-one)
+      (cons
+       (case role
+         [("user") (make-user "")]
+         [("assistant") (make-assistant "")]
+         [else (error 'insert-one!)])
+       (make-hasheq)))
+    (cond
+      [(and idx role)
+       (define pos (f idx))
+       (define new-entries
+         (build-vector
+          (add1 (vector-length history))
+          (λ (i)
+            (cond
+              [(< i pos) (vector-ref history i)]
+              [(= i pos) (new-one)]
+              [else (vector-ref history (sub1 i))]))))
+       (:= @history new-entries)
+       (:= @idx pos)]
+      [(vector-empty? history)
+       (:= @history (vector (new-one)))
+       (:= idx 0)]))
+
+  (define (delete-one!)
+    (define history (obs-peek @history))
+    (define idx (obs-peek @idx))
+    (define role (obs-peek @new-role))
+    (when (and idx role)
+      (define new-entries
+        (build-vector
+         (sub1 (vector-length history))
+         (λ (i)
+           (cond
+             [(< i idx) (vector-ref history i)]
+             [else (vector-ref history (add1 i))]))))
+      (:= @idx #f)
+      (:= @history new-entries)))
   
-  (for ([msg (in-list history)])
-    (define new-msg (struct-copy Msg msg))
-    (new-text! new-msg)
-    (send l append (Msg-role msg) new-msg))
-  (when (> (length history) 0)
-    (send l select (- (length history) 1))
-    (on-select l #f))
-  (send f show #t)
-  (and ok?
-       (for/list ([i (in-range (send l get-number))])
-         (define msg (send l get-data i))
-         (struct-copy Msg msg [content (get-content (hash-ref texts msg))]))))
+  (define/obs @tab "content")
+  (define/obs @visible? #t)
+  (define done? #f)
+
+  (render
+   (window
+    #:min-size '(800 600)
+    #:mixin (λ (%)
+              (class %
+                (super-new)
+                (obs-observe!
+                 @visible?
+                 (λ (visible?)
+                   (send this show visible?)
+                   (send this on-close)))))
+    (vpanel
+     (hpanel
+      (vpanel
+       #:stretch '(#f #t)
+       (table '("role" "content")
+              @history
+              (λ (type entries idx)
+                (when (and (eq? type 'select) idx)
+                  (:= @idx idx)
+                  (refresh-entry!)))
+              #:entry->row entry->row
+              #:selection @idx
+              #:style '(single column-headers)
+              )
+       (hpanel
+        #:stretch '(#t #f)
+        (choice '("user" "assistant")
+                (λ (role) (@new-role . := . role)))
+        (vpanel
+         (button "Insert before" (insert-one! values))
+         (button "Insert After" (insert-one! add1))
+         (button "Delete" delete-one!))))
+      (vpanel
+       (case-view
+        @idx-role
+        [("assistant")
+         (tabs '("content" "reason")
+               (λ (type _ sel)
+                 (when (eq? type 'select)
+                   (:= @tab sel)))
+               (case-view
+                @tab
+                [("content")
+                 (editor-canvas (obs-map
+                                 @idx-entry
+                                 (λ (e) (if e
+                                            (get-text! (Msg-content (car e)) (cdr e) 'content)
+                                            #f))))]
+                [("reason")
+                 (editor-canvas (obs-map
+                                 @idx-entry
+                                 (λ (e) (if e
+                                            (get-text! (or (Msg-reasoning-content (car e)) "") (cdr e) 'reason)
+                                            #f))))]
+                [else (editor-canvas)])
+               #:selection @tab)]
+        [else
+         (vpanel
+          (text "content")
+          (editor-canvas (obs-map
+                          @idx-entry
+                          (λ (e) (if e
+                                     (get-text! (Msg-content (car e)) (cdr e) 'content)
+                                     #f)))))])))
+     (hpanel
+      #:stretch '(#t #f) #:alignment '(center center)
+      (button "Done" (λ () (set! done? #t) (:= @visible? #f)))
+      (button "Cancel" (λ () (:= @visible? #f))))))
+   #:wait? #t)
+
+  (cond
+    [(not done?) #f]
+    [else
+     (for/list ([entry (in-vector (obs-peek @history))])
+       (entry->msg entry))]))
 
 (define (input-history)
   (cond
     [(edit-history (current-history))
      => current-history]))
+
+(module+ main
+  (define t
+    (list (make-user "who are you?")
+          (make-assistant "I am a helpful assistant.")))
+  (edit-history t))
