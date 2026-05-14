@@ -63,7 +63,7 @@
 
   (define k (make-keymap))
 
-  (define (get-text! content h key)
+  (define (get-text! content h key [lock? #f])
     (hash-ref! h key
                (λ ()
                  (define t (new text%))
@@ -71,6 +71,8 @@
                  (send t set-max-undo-history 100)
                  (load-content t content)
                  (send t set-modified #f)
+                 (when lock?
+                   (send t lock #t))
                  t)))
 
   (define (entry->row entry)
@@ -158,6 +160,13 @@
              [else (vector-ref history (add1 i))]))))
       (:= @idx #f)
       (:= @history new-entries)))
+
+  (define (default-to-toolcalls? idx)
+    (define history (obs-peek @history))
+    (define msg (car (vector-ref history idx)))
+    (and (string=? (Msg-role msg) "assistant")
+         (Msg-tool-calls msg)
+         (not (null? (Msg-tool-calls msg)))))
   
   (define/obs @tab "content")
   (define/obs @visible? #t)
@@ -183,6 +192,8 @@
               (λ (type entries idx)
                 (when (and (eq? type 'select) idx)
                   (:= @idx idx)
+                  (when (default-to-toolcalls? idx)
+                    (:= @tab "tool-call"))
                   (refresh-entry!)))
               #:entry->row entry->row
               #:selection @idx
@@ -223,12 +234,9 @@
                              @idx-entry
                              (λ (e) (Msg-tool-calls (car e))))
                             (λ (tc _)
-                              (define t (new text%))
-                              (send t insert (ToolCall-arguments tc))
-                              (send t lock #t)
                               (vpanel
                                (text (ToolCall-name tc))
-                               (editor-canvas t))))]
+                               (editor-canvas (get-text! (ToolCall-arguments tc) (cdr (obs-peek @idx-entry)) tc)))))]
                 [else (editor-canvas)])
                #:selection @tab)]
         [else
