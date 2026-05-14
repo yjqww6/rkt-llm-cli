@@ -167,8 +167,19 @@
     (and (string=? (Msg-role msg) "assistant")
          (Msg-tool-calls msg)
          (not (null? (Msg-tool-calls msg)))))
-  
-  (define/obs @tab "content")
+
+  (define @default-tab
+    (obs-combine
+     (λ (history idx)
+       (define msg (car (vector-ref history idx)))
+       (if (and (string=? (Msg-role msg) "assistant")
+                (Msg-tool-calls msg)
+                (not (null? (Msg-tool-calls msg))))
+           "tool-call"
+           "content"))
+     @history @idx))
+
+  (define/obs @tab (obs-peek @default-tab))
   (define/obs @visible? #t)
   (define done? #f)
 
@@ -192,8 +203,7 @@
               (λ (type entries idx)
                 (when (and (eq? type 'select) idx)
                   (:= @idx idx)
-                  (when (default-to-toolcalls? idx)
-                    (:= @tab "tool-call"))
+                  (:= @tab (obs-peek @default-tab))
                   (refresh-entry!)))
               #:entry->row entry->row
               #:selection @idx
@@ -236,7 +246,7 @@
                             (λ (tc _)
                               (vpanel
                                (text (ToolCall-name tc))
-                               (editor-canvas (get-text! (ToolCall-arguments tc) (cdr (obs-peek @idx-entry)) tc)))))]
+                               (editor-canvas (get-text! (ToolCall-arguments tc) (cdr (obs-peek @idx-entry)) tc #t)))))]
                 [else (editor-canvas)])
                #:selection @tab)]
         [else
