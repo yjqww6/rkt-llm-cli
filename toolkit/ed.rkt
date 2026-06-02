@@ -12,8 +12,8 @@
     (define (flush c)
       (define str (get-output-string out))
       (cond
-        [(= 0 (string-length str)) c]
         [(null? c) str]
+        [(= 0 (string-length str)) c]
         [else (cons str c)]))
     (cond
       [(not s) (flush '())]

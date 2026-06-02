@@ -257,13 +257,6 @@
        [else i])
      o)))
 
-(define (no-think)
-  (parameterize ([current-interactive-hooks (list* (with-output-prefix "<think>\n\n</think>\n\n")
-                                                   (with-user (λ (m) (merge-message m (make-user " /no_think"))))
-                                                   (current-interactive-hooks))]
-                 [current-repl-prompt (make-prefix-repl-prompt "NOTHK")])
-    (repl-loop)))
-
 (define (reroute-image [opt : Options])
   ;; oai-chat only for now
   (define old-chatter (current-chatter))
