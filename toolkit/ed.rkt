@@ -66,7 +66,7 @@
   (define (get-text! content h key [lock? #f])
     (hash-ref! h key
                (λ ()
-                 (define t (new text%))
+                 (define t (new text% [auto-wrap #t]))
                  (send t set-keymap k)
                  (send t set-max-undo-history 100)
                  (load-content t content)
@@ -144,7 +144,7 @@
        (:= @idx pos)]
       [(vector-empty? history)
        (:= @history (vector (new-one)))
-       (:= idx 0)]))
+       (:= @idx 0)]))
 
   (define (delete-one!)
     (define history (obs-peek @history))
@@ -171,12 +171,15 @@
   (define @default-tab
     (obs-combine
      (λ (history idx)
-       (define msg (car (vector-ref history idx)))
-       (if (and (string=? (Msg-role msg) "assistant")
-                (Msg-tool-calls msg)
-                (not (null? (Msg-tool-calls msg))))
-           "tool-call"
-           "content"))
+       (cond
+         [(not idx) "content"]
+         [else
+          (define msg (car (vector-ref history idx)))
+          (if (and (string=? (Msg-role msg) "assistant")
+                   (Msg-tool-calls msg)
+                   (not (null? (Msg-tool-calls msg))))
+              "tool-call"
+              "content")]))
      @history @idx))
 
   (define/obs @tab (obs-peek @default-tab))
