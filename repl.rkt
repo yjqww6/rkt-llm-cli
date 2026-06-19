@@ -77,6 +77,7 @@
   (define current-tpl (make-parameter #f))
   (define current-path-prefix (make-parameter #f))
   (define current-use-response (make-parameter #f))
+  (define current-native-paste (make-parameter #t))
   (command-line
    #:program "rkt-llm-cli"
    #:once-each
@@ -87,6 +88,7 @@
    [("--prefix") p "path prefix, default to v1/" (current-path-prefix p)]
    [("--response") "use openai response api" (current-use-response #t)]
    [("--model") m "default model" (current-model m)]
+   [("--macpaste") m "use os native paste" (current-native-paste m)]
    #:multi
    [("-t" "--require") file "(require (file \"<file>\"))" (namespace-require (list 'file file) ns)]
    [("-l" "--lib") file "(require (lib \"<path>\"))" (namespace-require (list 'lib file) ns)]
@@ -100,6 +102,13 @@
                 #:port (current-port)
                 #:tpl (current-tpl)
                 #:prefix (current-path-prefix))
+
+  (define-runtime-module-path macpaste "macpaste.rkt")
+
+  (when (current-native-paste)
+    (case (system-type 'os)
+      [(macosx) (dynamic-require macpaste #f)]
+      [else (void)]))
   
   (define (command-input? in)
     (regexp-match-peek #px"^\\s*," in))

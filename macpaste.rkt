@@ -1,11 +1,11 @@
 #lang racket/base
 (module clipboard racket/base
   (require (for-syntax racket/base syntax/parse) racket/list)
-  (require racket/gui/base)
   (require ffi/unsafe/objc ffi/unsafe/nsalloc ffi/unsafe/atomic
            ffi/unsafe ffi/unsafe/nsstring)
   (provide do-paste image-type? current-normalize-image)
 
+  (dynamic-require 'racket/gui/base #f)
   (import-class NSPasteboard NSAttributedString NSImage NSBitmapImageRep)
   (define _NSUInteger _ulong)
   (define-cstruct _NSRange ([location _NSUInteger]
@@ -160,8 +160,7 @@
   (define (image-type? img)
     (assoc img image-types)))
 
-(require "../private/main.rkt" 'clipboard (only-in "../main.rkt" current-paste)
-         racket/class racket/draw)
+(require (only-in "main.rkt" Image current-paste) 'clipboard)
 (provide macpaste current-accpet-image-types current-normalize-image)
 
 (define current-accpet-image-types (make-parameter '(png jpeg)))
