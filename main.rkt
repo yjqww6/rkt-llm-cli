@@ -8,6 +8,7 @@
          racket/list
          racket/string
          racket/port
+         racket/bool
          typed/racket/date)
 (provide (all-defined-out)
          (all-from-out "private/main.rkt")
@@ -194,9 +195,9 @@
    ">>>"))
 (define current-repl-prompt (make-parameter default-repl-prompt))
 
-(define (make-prefix-repl-prompt [prefix : String])
+(define (make-prefix-repl-prompt [prefix : String] [on : (Option (Parameterof Boolean)) #f])
   (define old (current-repl-prompt))
-  (λ () (string-append prefix " " (old))))
+  (λ () (if (implies on (on)) (string-append prefix " " (old)) (old))))
 
 (define (undo/pasted)
   (define h (current-history))
@@ -281,20 +282,22 @@
    (cons (string-append "Authorization: Bearer " tok)
          (current-headers))))
 
+(define-parameter current-with-date #t : Boolean)
+
 (define (make-system-with-date [system : (Option String)])
   (define ds (format "Current Date: ~a" (date->string (current-date))))
   (format "~a\n~a" ds (or (current-system) "")))
 
-(define (set-current-date)
-  (current-system (make-system-with-date (current-system))))
-
-(define (with-date)
+(define (with-date [repl-loop : (-> Any) repl-loop])
   (define (system-rewrite [h : History])
-    (match h
-      [(cons (struct* Msg ([role "system"] [content content])) r)
-       (assert (string? content))
-       (cons (make-system (make-system-with-date content)) r)]
-      [_ (cons (make-system (make-system-with-date #f)) h)]))
+    (cond
+      [(current-with-date)
+       (match h
+         [(cons (struct* Msg ([role "system"] [content content])) r)
+          (assert (string? content))
+          (cons (make-system (make-system-with-date content)) r)]
+         [_ (cons (make-system (make-system-with-date #f)) h)])]
+      [else h]))
   (parameterize ([current-messages-preprocessors (cons system-rewrite (current-messages-preprocessors))]
-                 [current-repl-prompt (make-prefix-repl-prompt "DATE")])
+                 [current-repl-prompt (make-prefix-repl-prompt "DATE" current-with-date)])
     (repl-loop)))
