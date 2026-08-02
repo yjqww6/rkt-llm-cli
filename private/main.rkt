@@ -160,6 +160,7 @@
   [stop : (Listof String)]
   [grammar : (Nullable String)]
   [enable-thinking : (Nullable Boolean)]
+  [reasoning-effort : (Nullable String)]
   ;; sampling
   [temperature : (Nullable Flonum)]
   [top-k : (Nullable Positive-Integer)]
