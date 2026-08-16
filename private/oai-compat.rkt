@@ -72,6 +72,11 @@
     (error 'parse-content-type-stream "no content-type")))
 
 (define (log-verbose [j : JSExpr])
+  (match j
+    [(hash* ['usage (hash* ['total_tokens t])])
+     #:when (exact-positive-integer? t)
+     (set-box! (current-total-tokens) t)]
+    [else (void)])
   (when (current-verbose)
     (match j
       [(hash* ['timings (hash* ['prompt_n pp] ['prompt_per_second ppt]

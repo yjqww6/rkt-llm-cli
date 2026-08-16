@@ -208,3 +208,5 @@
     [else (thunk)])
   (when newline?
     (newline output)))
+
+(define-parameter current-total-tokens (box #f) : (Boxof (Option Exact-Positive-Integer)))

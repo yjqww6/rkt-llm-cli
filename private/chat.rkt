@@ -143,3 +143,18 @@
     #:include? #t)))
 
 (define current-streaming (make-parameter gray-cot-streaming))
+
+(define msg-tokens : (Weak-HashTable Msg Exact-Positive-Integer) (make-weak-hasheq))
+
+(define (with-total-tokens [chat : InteractiveChatter]) : InteractiveChatter
+  (λ (i s o)
+    (define tokens : (Boxof (Option Exact-Positive-Integer)) (box #f))
+    (parameterize ([current-total-tokens tokens])
+      (define msg (chat i s o))
+      (define t (unbox tokens))
+      (when t
+        (hash-set! msg-tokens msg t))
+      msg)))
+
+(define (check-current-total-tokens)
+  (hash-ref msg-tokens (last (current-history)) (λ () #f)))

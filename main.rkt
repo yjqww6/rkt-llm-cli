@@ -53,7 +53,7 @@
 (define-type Chat (-> Interactive Void))
 (define default-chat : Chat
   (λ (s)
-    (define new-chatter (with-interactive-hooks (current-interactive-chatter)))
+    (define new-chatter (with-total-tokens (with-interactive-hooks (current-interactive-chatter))))
     (new-chatter s ((current-streaming)) (current-Options))
     (newline)))
 

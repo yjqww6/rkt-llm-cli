@@ -119,6 +119,11 @@
 (define (handle-completed [j : JSExpr] [streaming : (Option Streaming) #f])
   : (Values String Msg)
   (match j
+    [(hash* ['usage (hash* ['total_tokens t])])
+     #:when (exact-positive-integer? t)
+     (set-box! (current-total-tokens) t)]
+    [else (void)])
+  (match j
     [(hash 'id (? string? id) 'output (list outputs ...) #:open)
      (define-values (reason content tools)
        (for/fold
