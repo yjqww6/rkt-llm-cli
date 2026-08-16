@@ -231,6 +231,9 @@
 (define (redo)
   (repl-chat 'redo))
 
+(define (continue)
+  (repl-chat 'continue))
+
 (define (last-response)
   (Msg-content (last (current-history))))
 

@@ -46,9 +46,10 @@
             (current-history (append history (list resp)))
             resp])]
          [(ToolResult? msg)
-          (define resp (pchatter (make-history history (ToolResult-result msg))
+          (current-history (append history (ToolResult-result msg)))
+          (define resp (pchatter (make-history (current-history) '())
                                  streaming options))
-          (current-history (append history (ToolResult-result msg) (list resp)))
+          (current-history (append (current-history) (list resp)))
           resp]
          [(User? msg)
           (define resp (pchatter (make-history history (list (User-msg msg)))
