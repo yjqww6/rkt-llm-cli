@@ -7,7 +7,7 @@
          racket/list
          racket/port)
 
-(provide chat use-response-id)
+(provide chat)
 
 (: build-message (Msg -> (Listof JSExpr)))
 (define (build-message msg)
@@ -73,14 +73,18 @@
     [_ (error 'rewrite-tool "invalid tool: ~a" tool)]))
 
 (define (build-oai-response-request [msgs : (Listof Msg)] [prev-resp-id : (Option String)] [options : Options]) : (Immutable-HashTable Symbol JSExpr)
-  (define input
+  (define-values (system his)
     (match msgs
+      [(cons (and h (struct* Msg ([role "system"] [content (? string? s)]))) r) (values s r)]
+      [_ (values #f msgs)]))
+  (define input
+    (match his
       [(list msg) (build-message msg)]
-      [_ (build-messages msgs)]))
+      [_ (build-messages his)]))
   (hash-build
    'model (Options-model options)
    'input input
-   'instructions (false->nullable (current-system))
+   'instructions (false->nullable system)
    'stream (merge-right #t (Options-stream options))
    'tools (null->nullable (map rewrite-tool (map Tool-desc (Options-tools options))))
    'previous_response_id (false->nullable prev-resp-id)
@@ -170,46 +174,10 @@
      (streaming text 'think)]
     [else (void)]))
 
-(define response-ids : (HashTable Msg (Pairof History String)) (make-weak-hasheq))
-
-(define use-response-id : (Parameterof Boolean) (make-parameter #t))
-
-(define (lookup-resp-id [h : History]) : (Option String)
-  (cond
-    [(null? h) #f]
-    [(hash-ref response-ids (last h) (λ () #f))
-     =>
-     (λ (p)
-       (if (let loop : Boolean ([h1 h] [h2 (car p)])
-             (match* (h1 h2)
-               [('() '()) #t]
-               [((cons a1 b1) (cons a2 b2))
-                #:when (eq? a1 a2)
-                (loop b1 b2)]
-               [(_ _) #f]))
-           (cdr p)
-           #f))]
-    [else #f]))
-
-(define (handle-history [i : Interactive] [h : History])
-  (cond
-    [(or (Continue? i) (InteractiveCommon-prefix i))
-     (error '->msgs "invalid interactive: ~a" i)]
-    [(User? i) (values h (list (User-msg i)))]
-    [(ToolResult? i) (values h (ToolResult-result i))]
-    [(Redo? i)
-     (define uh (drop-right h 1))
-     (splitf-at-right uh (λ ([m : Msg]) (not (string=? (Msg-role m) "assistant"))))]
-    [else (error '->msgs "invalid interactive: ~a" i)]))
 
 (define (chat
-         [i : Interactive] [streaming : Streaming] [opt : Options])
-  (define-values (his msgs) (handle-history i (current-history)))
-  (define resp-id (and (use-response-id) (lookup-resp-id his)))
-  (define data (jsexpr->bytes (build-oai-response-request
-                               (if resp-id msgs (append his msgs))
-                               resp-id
-                               opt)))
+         [msgs : History] [streaming : Streaming] [opt : Options])
+  (define data (jsexpr->bytes (build-oai-response-request msgs #f opt)))
   ((current-network-trace) 'send data)
   (define-values (status headers body)
     (http-sendrecv/url (string->url (cast (Options-endpoint opt) String))
@@ -228,6 +196,4 @@
             ((current-network-trace) 'recv b)
             (handle-completed (bytes->jsexpr b) streaming)))
       (close-input-port body)))
-  (current-history (append his msgs (list msg)))
-  (hash-set! response-ids msg (cons (current-history) id))
   msg)

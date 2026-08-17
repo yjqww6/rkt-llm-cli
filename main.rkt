@@ -12,8 +12,7 @@
          typed/racket/date)
 (provide (all-defined-out)
          (all-from-out "private/main.rkt")
-         (all-from-out "private/chat.rkt")
-         response:use-response-id)
+         (all-from-out "private/chat.rkt"))
 
 (define current-interactive-chatter (make-parameter (ann (λ (h s o) (error 'interactive-chatter "no endpoint")) InteractiveChatter)))
 (define current-chatter (make-parameter (ann (λ (h s o) (error 'chatter "no endpoint")) Chatter)))
@@ -46,14 +45,17 @@
     (chatter new-h s new-o)))
 
 (define (make-default-interactive-chatter [chatter : Chatter] [default-opts : (Parameterof Options)]) : InteractiveChatter
-  (define new-chatter (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor chatter))))
+  (define new-chatter
+    (with-total-tokens
+        (with-interactive-hooks
+            (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor chatter))))))
   (λ (i s o)
     (new-chatter i s (merge-Options (default-opts) o))))
 
 (define-type Chat (-> Interactive Void))
 (define default-chat : Chat
   (λ (s)
-    (define new-chatter (with-total-tokens (with-interactive-hooks (current-interactive-chatter))))
+    (define new-chatter (current-interactive-chatter))
     (new-chatter s ((current-streaming)) (current-Options))
     (newline)))
 
@@ -98,13 +100,9 @@
   (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:model model))
   (cond
     [(eq? type 'oai-response)
-     (current-chatter (λ (h s o) (error 'use-endpoint "no chatter for responses")))
+     (current-chatter response:chat)
      (current-interactive-chatter
-      (let ([chat response:chat])
-        (ann
-         (λ (h s o)
-           (chat h s (merge-Options (default-chatter-options) o)))
-         InteractiveChatter)))]
+      (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))]
     [(eq? type 'oai-chat)
      (current-chatter oai:chat)
      (current-interactive-chatter
