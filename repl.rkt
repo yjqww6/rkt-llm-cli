@@ -259,5 +259,5 @@
                    (println v))))))
            (loop)]))
       (current-repl-loop loop)
-      (with-date loop))
+      (loop))
     (void (expeditor-close ee))))

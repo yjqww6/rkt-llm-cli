@@ -287,7 +287,7 @@
 
 (define (make-system-with-date [system : (Option String)])
   (define ds (format "Current Date: ~a" (date->string (current-date))))
-  (format "~a\n~a" ds (or (current-system) "")))
+  (format "~a\n~a" ds (or system "")))
 
 (define (with-date [repl-loop : (-> Any) repl-loop])
   (define (system-rewrite [h : History])
@@ -302,3 +302,10 @@
   (parameterize ([current-messages-preprocessors (cons system-rewrite (current-messages-preprocessors))]
                  [current-repl-prompt (make-prefix-repl-prompt "DATE" current-with-date)])
     (repl-loop)))
+
+(define (make-system-with-current-dir [system : (Option String)])
+  (define ds (format "Current Directory: ~a\n" (path->string (current-directory))))
+  (format "~a~a" ds (or (current-system) "")))
+
+(define (set-system-with-current-dir!)
+  (current-system (make-system-with-current-dir (current-system))))

@@ -46,7 +46,10 @@
 
 (define-type History (Listof Msg))
 
-(struct Tool ([name : String] [desc : JSExpr] [callback : (-> String (Option String))]))
+(struct Tool ([name : String] [desc : JSExpr] [callback : (-> String (Option String))])
+  #:property prop:custom-write
+  (λ (tool port mode)
+    (fprintf port "#<Tool:~a>" (Tool-name tool))))
 
 (struct InteractiveCommon ([prefix : (Option String)]))
 (struct User InteractiveCommon ([msg : Msg]))
