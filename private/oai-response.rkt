@@ -190,7 +190,9 @@
     (begin0
       (if (parse-content-type-streaming? headers)
           (let/ec k : (Values String Msg)
-            (on-event-stream body (handle-output streaming k))
+            (call/interrupt
+             (λ () (on-event-stream body (handle-output streaming k)))
+             void)
             (error 'chat "incomplete"))
           (let ([b (port->bytes body)])
             ((current-network-trace) 'recv b)
