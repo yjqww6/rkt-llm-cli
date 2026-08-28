@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/exn racket/file racket/match "tools.rkt")
+(require racket/exn racket/file racket/match "tools.rkt" "private/main.rkt")
 (provide (all-defined-out))
 
 (define-tool (read_file
@@ -45,4 +45,11 @@
       [_
        "multiple occurences of old text"])))
 
-(define (file-tools) (list read_file write_file edit_file))
+(define-tool (read_image [path : string #:desc "Path to the image file"])
+  #:desc "Read the content of an image. Only supports PNG, JPEG, and BMP formats."
+  (with-handlers ([exn:fail? (λ (e) (exn->string e))])
+    (define input (file->bytes path))
+    (Image input)))
+
+(define (file-tools [with-read-image? #t])
+  (list* read_file write_file edit_file (if with-read-image? (list read_image) '())))

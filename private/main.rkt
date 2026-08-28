@@ -38,15 +38,15 @@
 (define (make-assistant [content : String])
   (Msg "assistant" content '() #f #f))
 
-(define (make-tool [resp : String] [id : (Option String)])
-  (Msg "tool" resp '() id #f))
+(define (make-tool [resp : (U String Image)] [id : (Option String)])
+  (Msg "tool" (if (string? resp) resp (list resp)) '() id #f))
 
 (define (make-msg [role : Role] [content : String])
   (Msg role content '() #f #f))
 
 (define-type History (Listof Msg))
 
-(struct Tool ([name : String] [desc : JSExpr] [callback : (-> String (Option String))])
+(struct Tool ([name : String] [desc : JSExpr] [callback : (-> String (Option (U String Image)))])
   #:property prop:custom-write
   (λ (tool port mode)
     (fprintf port "#<Tool:~a>" (Tool-name tool))))

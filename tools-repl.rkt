@@ -7,7 +7,7 @@
          racket/list)
 (provide execute tools-repl-loop)
 
-(define-type ToolCallback (-> String String (Option String)))
+(define-type ToolCallback (-> String String (Option (U String Image))))
 (define current-tool-callback
   (make-parameter (ann (λ (sym tcs) (error 'tool-callback)) ToolCallback)))
 (define current-tool-parser
@@ -22,7 +22,7 @@
          (hasheq 'name name 'arguments args))
        tcs))
     (let/ec k : Void
-      (define tool-resps : (Listof String)
+      (define tool-resps : (Listof (U String Image))
         (for/list ([arg (in-list tool-args)])
           (match-define (hash* ['name (? string? name)] ['arguments arguments]) arg)
           (call/color
@@ -33,7 +33,7 @@
           (unless r (k (void)))
           r))
       (define tool-msgs
-        (map (λ ([rsp : String] [tc : ToolCall])
+        (map (λ ([rsp : (U String Image)] [tc : ToolCall])
                (make-tool rsp (ToolCall-id tc)))
              tool-resps tcs))
       ((current-chat) (ToolResult #f tool-msgs))))
