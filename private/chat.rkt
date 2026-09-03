@@ -28,13 +28,16 @@
     (define history (current-history))
     (cond
       [(Continue? msg)
-       (match/values
-        (split-at-right history 1)
-        [(past (list (and assist (struct* Msg ([role "assistant"])))))
-         (define resp (chatter (make-history history '()) streaming options))
-         (define new-resp (merge-message assist resp))
-         (current-history (append past (list new-resp)))
-         new-resp])]
+       (match history
+         [(list past ... (and assist (struct* Msg ([role "assistant"]))))
+          (define resp (chatter (make-history history '()) streaming options))
+          (define new-resp (merge-message assist resp))
+          (current-history (append (drop-right history 1) (list new-resp)))
+          new-resp]
+         [_
+          (define resp (chatter history streaming options))
+          (current-history (append (current-history) (list resp)))
+          resp])]
       [else
        (define pchatter (prefix-chatter (InteractiveCommon-prefix msg)))
        (cond

@@ -4,14 +4,21 @@
          "private/types.rkt"
          "private/main.rkt"
          racket/match
-         racket/list)
-(provide execute tools-repl-loop)
+         racket/list
+         racket/runtime-path
+         racket/file)
+(provide execute tools-repl-loop compact-context with-auto-compact)
 
 (define-type ToolCallback (-> String String (Option (U String Image))))
 (define current-tool-callback
   (make-parameter (ann (λ (sym tcs) (error 'tool-callback)) ToolCallback)))
 (define current-tool-parser
   (make-parameter (ann (λ (s) '()) (-> String (Listof ToolCall)))))
+
+(define (default-execute-continue [tool-msgs : (Listof Msg)])
+  ((current-chat) (ToolResult #f tool-msgs)))
+
+(define current-execute-continue (make-parameter default-execute-continue))
 
 (define (execute) : Void
   (define (calling [tcs : (Listof ToolCall)])
@@ -36,7 +43,7 @@
         (map (λ ([rsp : (U String Image)] [tc : ToolCall])
                (make-tool rsp (ToolCall-id tc)))
              tool-resps tcs))
-      ((current-chat) (ToolResult #f tool-msgs))))
+      ((current-execute-continue) tool-msgs)))
   (match (current-history)
     [(list _ ... (struct* Msg ([role "assistant"] [tool-calls tcs])))
      #:when (not (null? tcs))
@@ -187,3 +194,33 @@
                    (k)))))
        (repl-loop)
        (void)))))
+
+(define-runtime-path COMPACT "COMPACT.txt")
+
+(define (compact-context)
+  (call/color 'red (λ () (displayln "COMPACTING...")))
+  ((current-chat) (User #f (make-user (file->string COMPACT))))
+  (match-define (struct* Msg ([role "assistant"] [content (? string? compacted)])) (last (current-history)))
+  (clear)
+  (current-history (list (make-user (list "```\n" compacted "\n...\nContinue")))))
+
+(define (make-execute-continue/context [cont : (-> (Listof Msg) Void)]
+                                       [context-window : Positive-Fixnum]
+                                       [compact? : Boolean #t])
+  (λ ([tool-msgs : (Listof Msg)])
+    (define toks (check-current-total-tokens))
+    (unless toks
+      (call/color 'red (λ () (displayln "tokens unknown"))))
+    (cond
+      [(or (not toks) (< toks context-window)) (cont tool-msgs)]
+      [else
+       (current-history (append (current-history) tool-msgs))
+       (when compact?
+         (compact-context)
+         (continue))])))
+
+(define (with-auto-compact [context-window : Positive-Fixnum])
+  (define cont (make-execute-continue/context (current-execute-continue) context-window #t))
+  (parameterize ([current-execute-continue cont]
+                 [current-repl-prompt (make-prefix-repl-prompt "COMPACT")])
+    (repl-loop)))

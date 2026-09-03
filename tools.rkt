@@ -6,7 +6,7 @@
          racket/system
          syntax/parse/define
          json)
-(provide define-tool tool->string tools->string shell_exec (struct-out Tool))
+(provide define-tool tool->string tools->string shell_exec (struct-out Tool) current-shell-confirm)
 
 (begin-for-syntax
   (define-syntax-class Param #:datum-literals (:)
@@ -59,12 +59,19 @@
     (system cmd)
     (get-output-string o)))
 
+(define current-shell-confirm (make-parameter #t))
+
 (define-tool (shell_exec [cmd : string #:desc "command line to be executed"])
   #:desc (format "execute shell command. system type: ~a" (system-type 'os))
-  (call/color
-   'red
-   (λ () (printf "~a\tComfirm[y/n]:" cmd))
-   #:newline? #f)
-  (if (string=? "y" (read-line))
-      (system/string cmd)
-      #f))
+  (cond
+    [(current-shell-confirm)
+     (call/color
+      'red
+      (λ () (printf "~a\tConfirm[y/n]:" cmd))
+      #:newline? #f)
+     (if (string=? "y" (read-line))
+         (system/string cmd)
+         #f)]
+    [else
+     (sleep 2)
+     (system/string cmd)]))
