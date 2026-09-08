@@ -7,7 +7,7 @@
          racket/list
          racket/runtime-path
          racket/file)
-(provide execute tools-repl-loop compact-context with-auto-compact)
+(provide execute tools-repl-loop compact-context with-auto-compact lookup-compacted)
 
 (define-type ToolCallback (-> String String (Option (U String Image))))
 (define current-tool-callback
@@ -197,12 +197,27 @@
 
 (define-runtime-path COMPACT "COMPACT.txt")
 
+(define compacted-history : (Weak-HashTable Msg History) (make-weak-hasheq))
+
+(define (lookup-compacted [history : History (current-history)] #:recur? [recur : Boolean #t])
+  (let loop ([h history] [compacted : (Listof History) '()])
+    (match h
+      [(cons (and user (struct* Msg ([role "user"]))) _)
+       (cond
+         [(hash-ref compacted-history user (λ () #f))
+          =>
+          (λ (h) (if recur (loop h (cons h compacted)) h))]
+         [else compacted])]
+      [else compacted])))
+
 (define (compact-context)
   (call/color 'red (λ () (displayln "COMPACTING...")))
   ((current-chat) (User #f (make-user (file->string COMPACT))))
   (match-define (struct* Msg ([role "assistant"] [content (? string? compacted)])) (last (current-history)))
+  (define new-history (make-user (list "```\n" compacted "\n...\nContinue")))
+  (hash-set! compacted-history new-history (current-history))
   (clear)
-  (current-history (list (make-user (list "```\n" compacted "\n...\nContinue")))))
+  (current-history (list new-history)))
 
 (define (make-execute-continue/context [cont : (-> (Listof Msg) Void)]
                                        [context-window : Positive-Fixnum]

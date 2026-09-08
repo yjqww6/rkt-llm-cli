@@ -204,7 +204,7 @@
      (write-string (cond
                      [(eq? color 'red) "\033[31m"]
                      [(eq? color 'blue) "\033[34m"]
-                     [(eq? color 'gray) "\033[90m"])
+                     [(eq? color 'gray) "\033[37m"])
                    output)
      (thunk)
      (write-string "\033[0m" output)]
