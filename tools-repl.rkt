@@ -16,7 +16,7 @@
   (make-parameter (ann (λ (s) '()) (-> String (Listof ToolCall)))))
 
 (define (default-execute-continue [tool-msgs : (Listof Msg)])
-  ((current-chat) (ToolResult #f tool-msgs)))
+  (chat (ToolResult #f tool-msgs)))
 
 (define current-execute-continue (make-parameter default-execute-continue))
 
@@ -212,7 +212,7 @@
 
 (define (compact-context)
   (call/color 'red (λ () (displayln "COMPACTING...")))
-  ((current-chat) (User #f (make-user (file->string COMPACT))))
+  (chat (User #f (make-user (file->string COMPACT))))
   (match-define (struct* Msg ([role "assistant"] [content (? string? compacted)])) (last (current-history)))
   (define new-history (make-user (list "```\n" compacted "\n...\nContinue")))
   (hash-set! compacted-history new-history (current-history))
