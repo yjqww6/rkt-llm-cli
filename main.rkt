@@ -283,29 +283,27 @@
    (cons (string-append "Authorization: Bearer " tok)
          (current-headers))))
 
-(define-parameter current-with-date #t : Boolean)
-
-(define (make-system-with-date [system : (Option String)])
-  (define ds (format "Current Date: ~a" (date->string (current-date))))
-  (format "~a\n~a" ds (or system "")))
-
-(define (with-date [repl-loop : (-> Any) repl-loop])
+(define (with-system-prefix [system-prefixes : (Listof (-> String))] [repl-loop : (-> Any) repl-loop])
   (define (system-rewrite [h : History])
-    (cond
-      [(current-with-date)
-       (match h
-         [(cons (struct* Msg ([role "system"] [content content])) r)
-          (assert (string? content))
-          (cons (make-system (make-system-with-date content)) r)]
-         [_ (cons (make-system (make-system-with-date #f)) h)])]
-      [else h]))
-  (parameterize ([current-messages-preprocessors (cons system-rewrite (current-messages-preprocessors))]
-                 [current-repl-prompt (make-prefix-repl-prompt "DATE" current-with-date)])
+    (define prefixes (for/list : (Listof String) ([f (in-list system-prefixes)]) (f)))
+    (match h
+      [(cons (struct* Msg ([role "system"] [content content])) r)
+       (assert (string? content))
+       (cons (make-system (string-join (append prefixes (list content)) "\n")) r)]
+      [_ (cons (make-system (string-join prefixes "\n")) h)]))
+  (parameterize ([current-messages-preprocessors (cons system-rewrite (current-messages-preprocessors))])
     (repl-loop)))
 
-(define (make-system-with-current-dir [system : (Option String)])
-  (define ds (format "Current Directory: ~a\n" (path->string (current-directory))))
-  (format "~a~a" ds (or (current-system) "")))
+(define (make-system-date-prefix)
+  (format "Current Date: ~a" (date->string (current-date))))
 
-(define (set-system-with-current-dir!)
-  (current-system (make-system-with-current-dir (current-system))))
+(define (make-system-dir-prefix)
+  (format "Current Directory: ~a\n" (path->string (current-directory))))
+
+(define-parameter current-system-date-prefix "" : String)
+(define-parameter current-system-dir-prefix "" : String)
+
+(define (with-system-default-prefix [repl-loop : (-> Any) repl-loop])
+  (parameterize ([current-system-dir-prefix (make-system-dir-prefix)]
+                 [current-system-date-prefix (make-system-date-prefix)])
+    (with-system-prefix (list current-system-dir-prefix current-system-date-prefix) repl-loop)))
