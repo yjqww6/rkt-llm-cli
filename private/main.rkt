@@ -1,6 +1,7 @@
 #lang typed/racket/base/shallow
 (require "types.rkt"
          racket/match
+         racket/string
          syntax/parse/define
          (for-syntax racket/base
                      racket/syntax))
@@ -20,13 +21,16 @@
     [((Msg role-a content-a tc-a id-a r-a) (Msg role-b content-b tc-b id-b r-b))
      (Msg role-a
           (if (string? content-a)
-              (if (string? content-b) (string-append content-a content-b) (cons content-a content-b))
+              (if (string? content-b)
+                  (if (string-prefix? content-b content-a) content-b (string-append content-a content-b))
+                  (cons content-a content-b))
               (if (string? content-b) (append content-a (list content-b)) (append content-a content-b)))
           (append tc-a tc-b)
           (or id-a id-b)
           (cond
             [(not r-a) r-b]
             [(not r-b) r-a]
+            [(string-prefix? r-b r-a) r-b]
             [else (string-append r-a r-b)]))]))
 
 (define (make-user [prompt : (U String (Listof (U String Image)))])
