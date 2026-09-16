@@ -106,7 +106,7 @@
 ;; stderr pipe from filling and blocking the subprocess.
 (define (mcp-stderr-loop session)
   (define err (mcp-stdio-session-stderr session))
-  (with-handlers ([exn:fail? (lambda (e) (void))])
+  (with-handlers* ([exn:fail? (lambda (e) (void))])
     (let loop ()
       (define line (read-line err))
       (unless (eof-object? line)
@@ -119,7 +119,7 @@
   (define in (mcp-stdio-session-stdout session))
   ;; If the stream ends (EOF) or reading raises (e.g. the port was closed),
   ;; fail every in-flight request so callers don't hang forever.
-  (with-handlers ([exn:fail?
+  (with-handlers* ([exn:fail?
                    (lambda (e)
                      (mcp-stdio-fail-all-pending session))])
     (let loop ()
@@ -238,7 +238,7 @@
        (error 'mcp-http-read-sse "SSE stream ended before a response")]
       [(string-prefix? line "data: ")
        (define json-str (substring line 6))
-       (with-handlers ([exn:fail?
+       (with-handlers* ([exn:fail?
                         (lambda (e)
                           (eprintf "mcp-client: ignoring bad SSE data line: ~a~n" line)
                           (loop))])
