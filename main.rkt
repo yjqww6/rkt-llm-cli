@@ -162,7 +162,7 @@
         (define user
           (make-user (append (if (null? pasted)
                                  '()
-                                 (append '("```\n") pasted '("```\n")))
+                                 (append '("```\n") pasted '("\n```\n")))
                              (if (string? prompt) (list prompt) prompt))))
         (define base (current-history))
         (current-interactive-cleanup
