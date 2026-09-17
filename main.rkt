@@ -44,6 +44,8 @@
            (loop (cdr hooks) new-h new-o)])))
     (chatter new-h s new-o)))
 
+(define current-interactive-cleanup (make-parameter (ann '() (Listof (-> Void)))))
+
 (define (make-default-interactive-chatter [chatter : Chatter] [default-opts : (Parameterof Options)]) : InteractiveChatter
   (define new-chatter
     (with-total-tokens
@@ -57,6 +59,9 @@
   (λ (s)
     (define new-chatter (current-interactive-chatter))
     (new-chatter s ((current-streaming)) (current-Options))
+    (for ([c (in-list (current-interactive-cleanup))])
+      (c))
+    (current-interactive-cleanup '())
     (newline)))
 
 (define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String] [model : String])
@@ -160,10 +165,13 @@
                                  (append '("```\n") pasted '("```\n")))
                              (if (string? prompt) (list prompt) prompt))))
         (define base (current-history))
-        (chat (User prefix user))
-        (remember-pasted base (current-history) pasted)
-        (current-pasted '())
-        (current-output-prefix #f)]))
+        (current-interactive-cleanup
+         (cons (λ ()
+                 (remember-pasted base (current-history) pasted)
+                 (current-pasted '())
+                 (current-output-prefix #f))
+               (current-interactive-cleanup)))
+        (chat (User prefix user))]))
    break-prompt-tag
    (λ ([cc : (-> Nothing)])
      (newline)
