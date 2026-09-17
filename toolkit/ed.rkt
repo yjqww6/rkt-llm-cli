@@ -245,7 +245,7 @@
                 [("tool-call")
                  (list-view (obs-map
                              @idx-entry
-                             (λ (e) (Msg-tool-calls (car e))))
+                             (λ (e) (if e (Msg-tool-calls (car e)) '())))
                             (λ (tc _)
                               (vpanel
                                (text (ToolCall-name tc))
