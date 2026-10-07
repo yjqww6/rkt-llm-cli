@@ -306,7 +306,7 @@
   (format "Current Date: ~a" (date->string (current-date))))
 
 (define (make-system-dir-prefix)
-  (format "Current Directory: ~a\n" (path->string (current-directory))))
+  (format "Current Directory: ~a" (path->string (current-directory))))
 
 (define-parameter current-system-date-prefix "" : String)
 (define-parameter current-system-dir-prefix "" : String)
@@ -315,3 +315,7 @@
   (parameterize ([current-system-dir-prefix (make-system-dir-prefix)]
                  [current-system-date-prefix (make-system-date-prefix)])
     (with-system-prefix (list current-system-dir-prefix current-system-date-prefix) repl-loop)))
+
+(define (refresh-system-prefix)
+  (current-system-date-prefix (make-system-date-prefix))
+  (current-system-dir-prefix (make-system-dir-prefix)))
