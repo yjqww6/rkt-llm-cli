@@ -90,7 +90,7 @@
                   #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
                   #:prefix [prefix : (Option String) #f] #:model [model : String "default_model"])
   (make-default-options host
-                        (or port 8080)
+                        (or port 9931)
                         (string-append (or prefix "v1/")
                                        (cond
                                          [(eq? type 'oai-chat) "chat/completions"]
