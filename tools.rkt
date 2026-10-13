@@ -1,12 +1,12 @@
 #lang racket/base
 (require (for-syntax racket/base)
          "private/main.rkt"
-         racket/match
-         racket/string
          racket/system
          syntax/parse/define
+         racket/port
          json)
-(provide define-tool tool->string tools->string shell_exec (struct-out Tool) current-shell-confirm)
+(provide define-tool tool->string tools->string (struct-out Tool)
+         shell_exec current-shell-confirm current-shell-output)
 
 (begin-for-syntax
   (define-syntax-class Param #:datum-literals (:)
@@ -52,10 +52,18 @@
 (define (tools->string tools)
   (jsexpr->string (map Tool-desc tools)))
 
+(define current-shell-output (make-parameter #f))
+
 (define (system/string cmd)
   (define o (open-output-string))
-  (parameterize ([current-output-port o]
-                 [current-error-port o])
+  (define out (cond
+                [(current-shell-output)
+                 =>
+                 (λ (p)
+                   (combine-output o p))]
+                [else o]))
+  (parameterize ([current-output-port out]
+                 [current-error-port out])
     (system cmd)
     (get-output-string o)))
 
