@@ -48,9 +48,10 @@
 
 (define (make-default-interactive-chatter [chatter : Chatter] [default-opts : (Parameterof Options)]) : InteractiveChatter
   (define new-chatter
-    (with-total-tokens
-        (with-interactive-hooks
-            (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor chatter))))))
+    (with-autosave
+        (with-total-tokens
+            (with-interactive-hooks
+                (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor chatter)))))))
   (λ (i s o)
     (new-chatter i s (merge-Options (default-opts) o))))
 

@@ -162,3 +162,16 @@
 
 (define (check-current-total-tokens)
   (hash-ref msg-tokens (last (current-history)) (λ () #f)))
+
+(define-parameter current-autosave-file #f : (Option Path-String))
+
+(define (with-autosave [chat : InteractiveChatter]) : InteractiveChatter
+  (λ (i s o)
+    (begin0
+      (chat i s o)
+      (cond
+        [(current-autosave-file)
+         =>
+         (λ (p)
+           (with-handlers* ([exn:fail? void])
+             (save-history p)))]))))
