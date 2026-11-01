@@ -78,6 +78,7 @@
   (define current-path-prefix (make-parameter #f))
   (define current-use-response (make-parameter #f))
   (define current-native-paste (make-parameter #t))
+  (define current-no-init (make-parameter #f))
   (command-line
    #:program "rkt-llm-cli"
    #:once-each
@@ -88,7 +89,8 @@
    [("--prefix") p "path prefix, default to v1/" (current-path-prefix p)]
    [("--response") "use openai response api" (current-use-response #t)]
    [("--model") m "default model" (current-model m)]
-   [("--macpaste") m "use os native paste" (current-native-paste m)]
+   [("--no-native-paste") "use os native paste" (current-native-paste #f)]
+   [("--no-init") "not to load init file" (current-no-init #t)]
    #:multi
    [("-t" "--require") file "(require (file \"<file>\"))" (namespace-require (list 'file file) ns)]
    [("-l" "--lib") file "(require (lib \"<path>\"))" (namespace-require (list 'lib file) ns)]
@@ -104,11 +106,14 @@
                 #:prefix (current-path-prefix))
 
   (define-runtime-module-path macpaste "macpaste.rkt")
+  (define-runtime-path init-file "init.rkt")
 
   (when (current-native-paste)
     (case (system-type 'os)
       [(macosx) (dynamic-require macpaste #f)]
       [else (void)]))
+  (unless (current-no-init)
+    (namespace-require (list 'file (path->string init-file)) ns))
   
   (define (command-input? in)
     (regexp-match-peek #px"^\\s*," in))
