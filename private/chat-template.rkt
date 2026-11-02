@@ -4,7 +4,7 @@
          racket/list
          racket/match
          racket/string)
-(provide chat-template chatml skip-cot-tokens)
+(provide chat-template skip-cot-tokens)
 
 (define (split-prefill [messages : History])
   (match/values
@@ -82,72 +82,6 @@
     (write-string prefill s))
   (get-output-string s))
 
-(define (tool-call->jsexpr [tc : ToolCall]) : JSExpr
-  (match-define (struct* ToolCall ([name name] [arguments arguments] [id id])) tc)
-  (hasheq 'name name
-          'arguments (string->jsexpr arguments)
-          'id id))
-
-;;; mistral-v7-tekken
-(define (mistral [messages : History] [o : Options]) : String
-  (define-values (h prefill) (split-prefill messages))
-  (define s (open-output-string))
-  (define (put [str : String]) (write-string str s))
-  (define len (length h))
-  (for ([msg (in-list h)]
-        [i (in-naturals 1)])
-    (match msg
-      [(struct* Msg ([role "system"] [content content]))
-       (put "[SYSTEM_PROMPT]")
-       (write-content content s)
-       (put "[/SYSTEM_PROMPT]")]
-      [(struct* Msg ([role "user"] [content content]))
-       (assert (string? content))
-       (when (= i len)
-         (define tools (Options-tools o))
-         (unless (null? tools)
-           (put "[AVAILABLE_TOOLS]")
-           (put (jsexpr->string (map Tool-desc tools)))
-           (put "[/AVAILABLE_TOOLS]")))
-       (put "[INST]")
-       (write-content content s)
-       (put "[/INST]")]
-      [(struct* Msg ([role "assistant"] [content content] [tool-calls tool-calls]))
-       (assert (string? content))
-       (put (string-trim content #:left? #f))
-       (unless (null? tool-calls)
-         (put "[TOOL_CALLS]")
-         (put (jsexpr->string (map tool-call->jsexpr tool-calls))))]
-      [(struct* Msg ([role "tool"] [content content] [tool-call-id (? string? tool-call-id)]))
-       (assert (string? content))
-       (put "[TOOL_RESULTS]")
-       (put tool-call-id)
-       (put "[TOOL_CONTENT]")
-       (put content)
-       (put "[/TOOL_RESULTS]")]))
-  (when prefill
-    (put prefill))
-  (get-output-string s))
-
-(define (kimi [messages : History] [o : Options]) : String
-  (define-values (his prefill) (split-prefill messages))
-  (define s (open-output-string))
-  (for ([msg (in-list his)])
-    (match-define (struct* Msg ([role role] [content content])) msg)
-    (match role
-      [(or "user" "system" "assistant") (fprintf s "<im_~a>~a<im_middle>" role role)])
-    (cond
-      [(string? content) (write-string content s)]
-      [else
-       (for ([text (in-list content)]
-             #:when (string? text))
-         (write-string text s))])
-    (write-string "<im_end>" s))
-  (write-string "<|im_assistant|>assistant<im_middle>" s)
-  (when prefill
-    (write-string prefill s))
-  (get-output-string s))
-
 (define (skip-cot-tokens [msgs : History] #:sep [sep : String "</think>"]) : History
   (define end (length msgs))
   (for/list ([m (in-list msgs)]
@@ -167,9 +101,7 @@
     (match name
       ["chatml" chatml]
       ["step3" step3]
-      ["gemma4" gemma4]
-      ["mistral" mistral]
-      ["kimi" kimi]))
+      ["gemma4" gemma4]))
   (cond
     [(not skip-cot?) tpl]
     [else

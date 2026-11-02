@@ -160,7 +160,9 @@
   (define (image-type? img)
     (assoc img image-types)))
 
-(require (only-in "main.rkt" Image current-paste) 'clipboard)
+(require (only-in "private/pasted.rkt" current-paste)
+         (only-in "private/main.rkt" Image)
+         'clipboard)
 (provide macpaste current-accpet-image-types current-normalize-image)
 
 (define current-accpet-image-types (make-parameter '(png jpeg)))

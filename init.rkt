@@ -26,4 +26,4 @@
        '())))
 
 (define (agent [tools (agent-tools)])
-  (with-system-default-prefix (λ () (apply use-tools tools))))
+  (with-system-default-prefix (λ () (use-tools tools))))

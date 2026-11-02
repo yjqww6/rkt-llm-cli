@@ -7,8 +7,8 @@
          racket/system
          "main.rkt"
          "tools.rkt"
-         "tools-repl.rkt")
-(provide (all-defined-out) (all-from-out "main.rkt" "tools.rkt" "tools-repl.rkt"))
+         "tools-loop.rkt")
+(provide (all-defined-out) (all-from-out "main.rkt" "tools.rkt" "tools-loop.rkt"))
 (define-namespace-anchor here)
 
 (lazy-require [racket/gui/base (get-file)])
@@ -55,10 +55,6 @@
   (define pasted ((current-paste)))
   (when pasted
     (do-paste pasted append?)))
-
-(define (use-tools #:auto [auto? #t] #:manual [manual #f] . ts)
-  (define tools (flatten ts))
-  (tools-repl-loop #:auto auto? #:manual manual tools))
 
 (module+ main
   (require expeditor (submod expeditor configure)
@@ -135,19 +131,7 @@
   (define uploaded! #f)
   (struct refreshing ())
 
-  (define running? (make-parameter #f))
-  
-  (define (run thunk)
-    (parameterize-break
-     #f
-     (call-with-continuation-prompt
-      (λ ()
-        (parameterize ([running? #t])
-          (parameterize-break
-           #t
-           (thunk)))))))
-  (define (run-chat s)
-    (run (λ () (repl-chat s))))
+  (define running? (make-parameter #t))
 
   ;; prefixes
   ;; , starts a racket command
@@ -241,28 +225,24 @@
                     (reader (current-expeditor-reader))]
                    [current-expeditor-ready-checker
                     (ready (current-expeditor-ready-checker))])
-      (define (loop)
+      (define (repl-read)
         (define v (parameterize ([running? #f])
                     (expeditor-read ee #:prompt ((current-repl-prompt)))))
         (cond
-          [(eof-object? v) (void)]
-          [(refreshing? v) (loop)]
+          [(eof-object? v) v]
+          [(refreshing? v) (repl-read)]
           [(message? v)
-           (run-chat (message-content v))
-           (loop)]
+           (message-content v)]
           [(cmd? v)
-           (run (λ () (system (cmd-content v))))
-           (loop)]
+           (λ () (system (cmd-content v)))]
           [else
-           (call-with-continuation-prompt
-            (λ ()
-              (call-with-values
-               (λ () (run (λ () (eval v ns))))
-               (λ r
-                 (for ([v (in-list r)]
-                       #:unless (void? v))
-                   (println v))))))
-           (loop)]))
-      (current-repl-loop loop)
-      (loop))
+           (λ ()
+             (call-with-values
+              (λ () (eval v ns))
+              (λ r
+                (for ([v (in-list r)]
+                      #:unless (void? v))
+                  (println v)))))]))
+      (current-repl-read repl-read)
+      ((current-repl-loop)))
     (void (expeditor-close ee))))

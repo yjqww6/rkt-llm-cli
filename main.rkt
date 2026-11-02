@@ -1,74 +1,21 @@
 #lang typed/racket/base/shallow
 (require "private/main.rkt"
-         (prefix-in oai: "private/oai-compat.rkt")
-         (prefix-in response: "private/oai-response.rkt")
          "private/chat.rkt"
-         "private/chat-template.rkt"
+         "private/endpoint.rkt"
+         "private/pasted.rkt"
+         "helpers.rkt"
          racket/match
          racket/list
-         racket/string
          racket/port
          racket/bool
-         typed/racket/date)
+         racket/file
+         racket/runtime-path)
 (provide (all-defined-out)
          (all-from-out "private/main.rkt")
-         (all-from-out "private/chat.rkt"))
-
-(define current-interactive-chatter (make-parameter (ann (λ (h s o) (error 'interactive-chatter "no endpoint")) InteractiveChatter)))
-(define current-chatter (make-parameter (ann (λ (h s o) (error 'chatter "no endpoint")) Chatter)))
-(define default-chatter-options (make-parameter (make-Options)))
-
-(define current-messages-preprocessors (make-parameter (ann '() (Listof (-> History History)))))
-(define (with-messages-preprocessor [chatter : Chatter]) : Chatter
-  (map-chatter chatter
-               (λ (h) (((inst foldl (-> History History) (-> History History))
-                        compose1 values (current-messages-preprocessors)) h))))
-(define current-messages-postprocessors (make-parameter (ann '() (Listof (-> Msg Msg)))))
-(define (with-messages-postprocessor [chatter : Chatter]) : Chatter
-  (λ (h s o)
-    (define m (chatter h s o))
-    (((inst foldl (-> Msg Msg) (-> Msg Msg))
-      compose1 values (current-messages-postprocessors)) m)))
-
-(define current-interactive-hooks (make-parameter (ann '() (Listof InteractiveHook))))
-(define (with-interactive-hooks [chatter : InteractiveChatter]) : InteractiveChatter
-  (λ (h s o)
-    (define-values (new-h new-o)
-      (let loop : (Values Interactive Options)
-        ([hooks (current-interactive-hooks)] [h h] [o o])
-        (cond
-          [(null? hooks) (values h o)]
-          [else
-           (define-values (new-h new-o)
-             ((car hooks) h o))
-           (loop (cdr hooks) new-h new-o)])))
-    (chatter new-h s new-o)))
-
-(define current-interactive-cleanup (make-parameter (ann '() (Listof (-> Void)))))
-
-(define (make-default-interactive-chatter [chatter : Chatter] [default-opts : (Parameterof Options)]) : InteractiveChatter
-  (define new-chatter
-    (with-autosave
-        (with-total-tokens
-            (with-interactive-hooks
-                (make-interactive-chat (with-messages-postprocessor (with-messages-preprocessor chatter)))))))
-  (λ (i s o)
-    (new-chatter i s (merge-Options (default-opts) o))))
-
-(define-type Chat (-> Interactive Void))
-(define default-chat : Chat
-  (λ (s)
-    (define new-chatter (current-interactive-chatter))
-    (new-chatter s ((current-streaming)) (current-Options))
-    (for ([c (in-list (current-interactive-cleanup))])
-      (c))
-    (current-interactive-cleanup '())
-    (newline)))
-
-(define (make-default-options [host : String] [port : Exact-Nonnegative-Integer] [path : String] [model : String])
-  (make-Options
-   #:endpoint (format "http://~a:~a/~a" host port path)
-   #:model model))
+         (all-from-out "private/chat.rkt")
+         (all-from-out "private/endpoint.rkt")
+         (all-from-out "private/pasted.rkt")
+         (all-from-out "helpers.rkt"))
 
 (define #:forall (a) (call-with-cust (thunk : (-> a)))
   (define cust (make-custodian))
@@ -78,101 +25,17 @@
                     (thunk)))
                 (λ () (custodian-shutdown-all cust))))
 
-(define current-chat (make-parameter default-chat))
-
-(define (chat [s : Interactive])
+(define (chat [i : Interactive])
   (call-with-cust
    (λ ()
-     ((current-chat) s))))
+     (define s ((current-streaming)))
+     ((current-interactive-chatter) i s (current-Options))
+     (s "\n" 'content))))
 
-(define-type BackendType (U 'oai-completion 'oai-chat 'oai-response))
-
-(define (endpoint #:type [type : BackendType 'oai-chat]
-                  #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
-                  #:prefix [prefix : (Option String) #f] #:model [model : String "default_model"])
-  (make-default-options host
-                        (or port 9931)
-                        (string-append (or prefix "v1/")
-                                       (cond
-                                         [(eq? type 'oai-chat) "chat/completions"]
-                                         [(eq? type 'oai-completion) "completions"]
-                                         [(eq? type 'oai-response) "responses"]))
-                        model))
-
-(define (use-endpoint #:type [type : BackendType 'oai-chat]
-                      #:host [host : String "localhost"] #:port [port : (Option Exact-Nonnegative-Integer) #f]
-                      #:tpl [tpl : (Option String) #f] #:prefix [prefix : (Option String) #f]
-                      #:model [model : String "default_model"])
-  (default-chatter-options (endpoint #:type type #:host host #:port port #:prefix prefix #:model model))
-  (cond
-    [(eq? type 'oai-response)
-     (current-chatter response:chat)
-     (current-interactive-chatter
-      (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))]
-    [(eq? type 'oai-chat)
-     (current-chatter oai:chat)
-     (current-interactive-chatter
-      (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))]
-    [(eq? type 'oai-completion)
-     (current-chatter (make-chat-by-template (λ (h s o) (oai:completion h s o)) (chat-template (or tpl "chatml"))))
-     (current-interactive-chatter
-      (make-default-interactive-chatter (λ (h s o) ((current-chatter) h s o)) default-chatter-options))]))
-
-(define-parameter current-pasted '() : (Listof (U String Image)))
-(define (clear-paste)
-  (current-pasted '()))
-
-(define pasted-history : (Thread-Cellof (Option (Weak-HashTable Msg (Listof (U String Image))))) (make-thread-cell #f #f))
-(thread-cell-set! pasted-history (ann (make-weak-hasheq) (Weak-HashTable Msg (Listof (U String Image)))))
-
-(define (find-new-user [h : History] [base : History]) : (Option Msg)
-  (let loop ([h h] [b base])
-    (match* (h b)
-      [((cons _ h1) (cons _ b1)) (loop h1 b1)]
-      [((cons (and u (struct* Msg ([role "user"]))) _) '()) u]
-      [(_ _) #f])))
-
-(define (remember-pasted [base : History] [h : History] [p : (Listof (U String Image))])
-  (define w (thread-cell-ref pasted-history))
-  (when w
-    (define u (find-new-user h base))
-    (when u
-      (hash-set! w u p))))
-(define (restore-pasted [base : History] [h : History]) : (Option (Listof (U String Image)))
-  (define w (thread-cell-ref pasted-history))
-  (and w
-       (let ([u (find-new-user h base)])
-         (and u
-              (hash-ref w u (λ () #f))))))
-
-(define-parameter current-output-prefix #f : (Option String))
-
-(define (repl-chat [prompt : (U String 'redo 'continue (Listof (U String Image)))])
+(define (call/break [thunk : (-> Void)])
   (call-with-continuation-prompt
    (λ ()  
-     (cond
-       [(eq? prompt 'redo)
-        (define prefix (current-output-prefix))
-        (chat (Redo prefix))
-        (current-output-prefix #f)]
-       [(eq? prompt 'continue)
-        (chat (Continue))]
-       [else
-        (define pasted (current-pasted))
-        (define prefix (current-output-prefix))
-        (define user
-          (make-user (append (if (null? pasted)
-                                 '()
-                                 (append '("```\n") pasted '("\n```\n")))
-                             (if (string? prompt) (list prompt) prompt))))
-        (define base (current-history))
-        (current-interactive-cleanup
-         (cons (λ ()
-                 (remember-pasted base (current-history) pasted)
-                 (current-pasted '())
-                 (current-output-prefix #f))
-               (current-interactive-cleanup)))
-        (chat (User prefix user))]))
+     (thunk))
    break-prompt-tag
    (λ ([cc : (-> Nothing)])
      (newline)
@@ -181,16 +44,28 @@
      (when (and (not (eof-object? line)) (regexp-match? #px"^\\s*y" line))
        (cc)))))
 
-(define-parameter current-paste (λ () #f) : (-> (Option (Listof (U Image String)))))
+(define-parameter current-output-prefix #f : (Option String))
 
-(define (do-paste [pasted : (U Image String (Listof (U Image String)))] [append? : Boolean #t])
-  (define p
-    (cond
-      [(list? pasted) pasted]
-      [else (list pasted)]))
+(define (default-run-message [prompt : (U String 'continue 'redo)])
   (cond
-    [append? (current-pasted (append (current-pasted) p))]
-    [else (current-pasted p)]))
+    [(eq? prompt 'redo)
+     (chat (Redo (current-output-prefix)))
+     (current-output-prefix #f)]
+    [(eq? prompt 'continue)
+     (chat (Continue))]
+    [else
+     (define pasted (current-pasted))
+     (define prefix (current-output-prefix))
+     (define user
+       (make-user (append (if (null? pasted)
+                              '()
+                              (append '("```\n") pasted '("\n```\n")))
+                          (if (string? prompt) (list prompt) prompt))))
+     (define base (current-history))
+     (chat (User prefix user))
+     (remember-pasted base (current-history) pasted)
+     (current-pasted '())
+     (current-output-prefix #f)]))
 
 (define (default-repl-prompt)
   (string-append
@@ -206,25 +81,34 @@
   (define old (current-repl-prompt))
   (λ () (if (implies on (on)) (string-append prefix " " (old)) (old))))
 
-(define (undo/pasted)
-  (define h (current-history))
-  (undo)
-  (define base (current-history))
-  (define r (restore-pasted base h))
-  (when r
-    (current-pasted r)))
+(define (default-repl-read)
+  (newline)
+  (display ((current-repl-prompt)))
+  (read-line))
 
-(define current-repl-loop (make-parameter (ann (λ () (error 'repl-loop)) (-> Any))))
+(define (default-repl-run [thunk : (-> Any)])
+  (call-with-continuation-prompt (λ () (call/break (λ () (thunk) (void))))))
+
+(define (default-repl-loop) : Any
+  (let loop ()
+    (define r ((current-repl-read)))
+    (cond
+      [(eof-object? r) (void)]
+      [(string? r)
+       ((current-repl-run)
+        (λ ()
+          ((current-repl-run-message) r)))
+       (loop)]
+      [else
+       ((current-repl-run) r)
+       (loop)])))
+
+(define current-repl-read (make-parameter (ann default-repl-read (-> (U String EOF (-> Void))))))
+(define current-repl-run (make-parameter (ann default-repl-run (-> (-> Any) Any))))
+(define current-repl-run-message (make-parameter (ann default-run-message (-> (U String 'continue 'redo) Any))))
+(define current-repl-loop (make-parameter (ann default-repl-loop (-> Any))))
+
 (define (repl-loop) ((current-repl-loop)))
-
-(define (trace-network! [only : (U 'send 'recv #f) #f] [output : Output-Port (current-output-port)])
-  (current-network-trace
-   (lambda (type data)
-     (when (or (not only) (eq? type only))
-       (fprintf output "~a: ~a~%" type data)))))
-
-(define (untrace-network!)
-  (current-network-trace void))
 
 (define (warmup)
   (parameterize ([current-output-prefix (current-output-prefix)]
@@ -233,90 +117,38 @@
                  [current-stream #f]
                  [current-history (current-history)]
                  [current-output-port (open-output-nowhere)])
-    (repl-chat "")))
+    ((current-repl-run-message) "")))
 
 (define (redo)
-  (repl-chat 'redo))
+  ((current-repl-run-message) 'redo))
 
 (define (continue)
-  (repl-chat 'continue))
+  ((current-repl-run-message) 'continue))
 
-(define (last-response)
-  (Msg-content (last (current-history))))
+(define-runtime-path COMPACT "COMPACT.txt")
 
-(define (with-output-prefix [prefix : String]) : InteractiveHook
-  (λ (i o)
-    (define p
-      (cond
-        [(and (InteractiveCommon? i) (InteractiveCommon-prefix i))
-         =>
-         (λ (p) (string-append prefix p))]
-        [else prefix]))
-    (values
-     (cond
-       [(User? i) (struct-copy User i [prefix #:parent InteractiveCommon p])]
-       [(ToolResult? i) (struct-copy ToolResult i [prefix #:parent InteractiveCommon p])]
-       [(Redo? i) (struct-copy Redo i [prefix #:parent InteractiveCommon p])]
-       [else i])
-     o)))
+(define compacted-history : (Weak-HashTable Msg History) (make-weak-hasheq))
 
-(define (with-user [f : (-> Msg Msg)]) : InteractiveHook
-  (λ (i o)
-    (values
-     (cond
-       [(User? i) (struct-copy User i [msg (f (User-msg i))])]
-       [else i])
-     o)))
-
-(define (reroute-image [opt : Options])
-  ;; oai-chat only for now
-  (define old-chatter (current-chatter))
-  (: new-chatter Chatter)
-  (define (new-chatter h s o)
-    (old-chatter h s
-                 (if (for/or : Boolean ([m (in-list h)])
-                       (and (not (string? (Msg-content m)))
-                            (for/or : Boolean ([p (in-list (Msg-content m))])
-                              (not (string? p)))))
-                     (merge-Options o opt)
-                     o)))
-  (parameterize ([current-chatter new-chatter]
-                 [current-repl-prompt (make-prefix-repl-prompt "REROUTE")])
-    (repl-loop)))
-
-(define (use-authorization-token [token : (Option String) #f])
-  (define tok
-    (or token (getenv "LLM_API_TOKEN")))
-  (assert tok)
-  (current-headers
-   (cons (string-append "Authorization: Bearer " tok)
-         (current-headers))))
-
-(define (with-system-prefix [system-prefixes : (Listof (-> String))] [repl-loop : (-> Any) repl-loop])
-  (define (system-rewrite [h : History])
-    (define prefixes (for/list : (Listof String) ([f (in-list system-prefixes)]) (f)))
+(define (lookup-compacted [history : History (current-history)] #:recur? [recur : Boolean #t])
+  (let loop ([h history] [compacted : (Listof History) '()])
     (match h
-      [(cons (struct* Msg ([role "system"] [content content])) r)
-       (assert (string? content))
-       (cons (make-system (string-join (append prefixes (list content)) "\n")) r)]
-      [_ (cons (make-system (string-join prefixes "\n")) h)]))
-  (parameterize ([current-messages-preprocessors (cons system-rewrite (current-messages-preprocessors))])
-    (repl-loop)))
+      [(cons (and user (struct* Msg ([role "user"]))) _)
+       (cond
+         [(hash-ref compacted-history user (λ () #f))
+          =>
+          (λ (h) (if recur (loop h (cons h compacted)) h))]
+         [else compacted])]
+      [else compacted])))
 
-(define (make-system-date-prefix)
-  (format "Current Date: ~a" (date->string (current-date))))
-
-(define (make-system-dir-prefix)
-  (format "Current Directory: ~a" (path->string (current-directory))))
-
-(define-parameter current-system-date-prefix "" : String)
-(define-parameter current-system-dir-prefix "" : String)
-
-(define (with-system-default-prefix [repl-loop : (-> Any) repl-loop])
-  (parameterize ([current-system-dir-prefix (make-system-dir-prefix)]
-                 [current-system-date-prefix (make-system-date-prefix)])
-    (with-system-prefix (list current-system-dir-prefix current-system-date-prefix) repl-loop)))
-
-(define (refresh-system-prefix)
-  (current-system-date-prefix (make-system-date-prefix))
-  (current-system-dir-prefix (make-system-dir-prefix)))
+(define (compact-context)
+  (call/color 'red (λ () (displayln "COMPACTING...")))
+  (chat (User #f (make-user (file->string COMPACT))))
+  (match-define (struct* Msg ([role "assistant"] [content (? string? compacted)])) (last (current-history)))
+  (define new-history (make-user (list "```\n" compacted "\n...\nContinue")))
+  (hash-set! compacted-history new-history (current-history))
+  (clear)
+  (current-history (list new-history)))
+#;
+(module+ main
+  (use-endpoint)
+  (repl-loop))

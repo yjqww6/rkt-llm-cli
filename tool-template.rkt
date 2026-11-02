@@ -125,24 +125,3 @@ TPL
 
 (define (make-step-response [response : String])
   (string-append "<tool_response>\n" response "\n</tool_response>"))
-
-(define (parse-mistral-toolcall [response : String])
-  (define (submatch [px : Regexp]) : (Listof ToolCall)
-    (match (regexp-match px response)
-      [(list _ (? string? tcs))
-       (with-handlers* ([exn:fail:read? (λ (_) '())])
-         (let/ec k : (Listof ToolCall)
-           (match (string->jsexpr tcs)
-             [(list tc ...)
-              (map (λ ([tc : JSExpr]) : ToolCall
-                     (match tc
-                       [(hash* ['name (? string? name)] ['arguments arguments])
-                        (ToolCall name (jsexpr->string arguments) "")]
-                       [_ (k '())]))
-                   tc)]
-             [_ '()])))]
-      [_ '()]))
-  (define sp (submatch #px"\\[TOOL_CALLS\\]\\s*(.*?)\\s*$"))
-  (if (null? sp)
-      (submatch #px"\\s*(\\[\\{.*?)\\s*$")
-      sp))

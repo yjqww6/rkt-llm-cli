@@ -1,0 +1,188 @@
+#lang typed/racket/base/shallow
+(require "main.rkt"
+         "tool-template.rkt"
+         "private/types.rkt"
+         "private/main.rkt"
+         "private/endpoint.rkt"
+         racket/match)
+
+(provide execute-loop use-tools current-compacting-threshold)
+
+(define current-tool-parser
+  (make-parameter (ann (λ (s) '()) (-> String (Listof ToolCall)))))
+
+(define-parameter current-compacting-threshold #f : (Option Positive-Fixnum))
+
+(define (execute-tools [tcs : (Listof ToolCall)]) : (Option (Listof Msg))
+  (define (tool-callback [name : String] [arg : String])
+    (cond
+      [(findf (λ ([t : Tool]) (string=? name (Tool-name t))) (current-tools))
+       =>
+       (λ (tool)
+         ((Tool-callback tool) (fix-arguments tool arg)))]
+      [else (error 'default-tool-callback "~a not found" name)]))
+  (define tool-args : (Listof (HashTable Symbol String))
+    (map
+     (λ ([tc : ToolCall])
+       (match-define (ToolCall name args id) tc)
+       (hasheq 'name name 'arguments args))
+     tcs))
+  (let/ec k : (Option (Listof Msg))
+    (define tool-resps : (Listof (U String Image))
+      (for/list ([arg (in-list tool-args)])
+        (match-define (hash* ['name (? string? name)] ['arguments arguments]) arg)
+        (call/color
+         'blue
+         (λ () (printf "Executing ~a: ~a" name arguments)))
+        (define r
+          (tool-callback name arguments))
+        (unless r (k #f))
+        r))
+    (map (λ ([rsp : (U String Image)] [tc : ToolCall])
+           (make-tool rsp (ToolCall-id tc)))
+         tool-resps tcs)))
+
+(define (maybe-execute-tools) : (Option (Listof Msg))
+  (match (current-history)
+    [(list _ ... (struct* Msg ([role "assistant"] [tool-calls tcs])))
+     #:when (not (null? tcs))
+     (execute-tools tcs)]
+    [(list _ ... (struct* Msg ([role "assistant"]
+                               [content (and (? string?) (app (current-tool-parser) tcs))])))
+     #:when (not (null? tcs))
+     (execute-tools tcs)]
+    [else #f]))
+
+(define (query-arg-type [tool : Tool] [param : Symbol])
+  (match (json-ref (Tool-desc tool) 'function 'parameters 'properties param)
+    [(hash 'type (or "string" "str" "text" "varchar" "char" "enum") #:open) 'str]
+    [(hash 'anyOf (list (hash 'type "string") (hash 'type "null")) #:open) 'str]
+    [_ 'json]))
+
+(define (fix-arguments [tool : Tool] [arguments : String]) : String
+  (define args (string->jsexpr arguments))
+  (cond
+    [(hash? args)
+     (jsexpr->string
+      (for/hasheq : (HashTable Symbol JSExpr) ([(k v) (in-hash args)])
+        (if (and (eq? (query-arg-type tool k) 'str)
+                 (not (string? v)))
+            (values k (jsexpr->string v))
+            (values k v))))]
+    [else (error 'fix-arguments "invalid arguments")]))
+
+(define ((run-message/tools [old-run-message : (-> (U String 'continue 'redo) Any) (current-repl-run-message)])
+         [r : (U String 'redo 'continue)]) : Any
+  (old-run-message r)
+  (execute-loop))
+
+(define (execute-loop) : Any
+  (define e (maybe-execute-tools))
+  (cond
+    [e
+     (cond
+       [(check-and-compact e)
+        (chat (Continue))]
+       [else
+        (chat (ToolResult #f e))])
+     (execute-loop)]
+    [else (void)]))
+
+(define (check-and-compact [tool-msgs : (Listof Msg)]) : Boolean
+  (define toks (check-current-total-tokens))
+  (define threshold (current-compacting-threshold))
+  (unless toks
+    (call/color 'red (λ () (displayln "tokens unknown"))))
+  (cond
+    [(or (not toks)
+         (not threshold)
+         (< toks threshold))
+     #f]
+    [else
+     (current-history (append (current-history) tool-msgs))
+     (compact-context)
+     #t]))
+
+(define ((tool->user [maker : (-> String String)]) [msg : Msg])
+  (match msg
+    [(struct* Msg ([role "tool"] [content (? string? content)]))
+     (struct-copy Msg msg [role (ann "user" Role)] [content (maker content)])]
+    [else msg]))
+
+(define (map-system [f : (-> (Option String) (Option String))] [h : History]) : History
+  (: s (Option String))
+  (define-values (s r)
+    (match h
+      [(cons (struct* Msg ([role "system"] [content content])) r)
+       (assert (string? content))
+       (values content r)]
+      [_ (values #f h)]))
+  (cond
+    [(f s) => (λ (sys) (cons (make-system sys) r))]
+    [else r]))
+
+(define (erase-tools [h : History] [s : Streaming] [o : Options] [next : Chatter]) : Msg
+  (next h s (struct-copy Options o [tools '()])))
+
+(define (with-nous-tools [repl : (-> Void)])
+  (define (system-rewrite [s : (Option String)]) : (Option String)
+    (make-nous-system-template (map Tool-desc (current-tools)) s))
+  (parameterize ([current-tool-parser parse-nous-toolcall]
+                 [current-chatter-hooks (cons erase-tools (current-chatter-hooks))]
+                 [current-messages-preprocessors (cons
+                                                  (compose1
+                                                   (λ ([s : History]) (map (tool->user make-nous-response) s))
+                                                   (λ ([s : History]) (map-system system-rewrite s)))
+                                                  (current-messages-preprocessors))])
+    (repl)))
+
+
+(define (with-step-tools [repl : (-> Void)])
+  (define (system-rewrite [s : (Option String)]) : (Option String)
+    (make-step-system-template (map Tool-desc (current-tools)) s))
+  (parameterize ([current-tool-parser (λ ([s : String])
+                                        (parse-step-response
+                                         s
+                                         (λ ([name : String] [param : Symbol]) : (U 'str 'json)
+                                           (cond
+                                             [(memf (λ ([t : Tool]) (string=? name (Tool-name t))) (current-tools))
+                                              =>
+                                              (λ (tools)
+                                                (query-arg-type (car tools) param))]
+                                             [else (error 'default-tool-callback "~a not found" name)]))))]
+                 [current-chatter-hooks (cons erase-tools (current-chatter-hooks))]
+                 [current-messages-preprocessors (cons
+                                                  (compose1
+                                                   (λ ([s : History]) (map (tool->user make-step-response) s))
+                                                   (λ ([s : History]) (map-system system-rewrite s)))
+                                                  (current-messages-preprocessors))])
+    (repl)))
+
+(module control racket/base
+  (require racket/control)
+  (provide (all-defined-out))
+  (define (call/reset proc)
+    (reset (proc)))
+  (define (call/shift proc)
+    (shift k (proc k))))
+
+(require/typed/provide
+ 'control
+ [call/reset (-> (-> Void) Void)]
+ [call/shift (-> (-> (-> Void) Void) (Values))])
+
+(define (use-tools #:auto [auto? #t] #:manual [manual #f] [tools : (Listof Tool)])
+  (parameterize ([current-tools tools]
+                 [current-repl-prompt (make-prefix-repl-prompt "TOOL")])
+    (call/reset
+     (λ ()
+       (when manual
+         (call/shift
+          (λ (k) (cond [(eq? manual 'step3) (with-step-tools k)]
+                       [else (with-nous-tools k)]))))
+       (when auto?
+         (call/shift
+          (λ (k) (parameterize ([current-repl-run-message (run-message/tools (current-repl-run-message))])
+                   (k)))))
+       (repl-loop)
+       (void)))))

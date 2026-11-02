@@ -1,6 +1,5 @@
 #lang racket/base
-(require "main.rkt"
-         "tools.rkt"
+(require "tools.rkt"
          "mcp-client.rkt"
          racket/match
          json)

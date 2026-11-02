@@ -66,7 +66,6 @@
 (define-type InteractiveChatter (Interactive Streaming Options -> Msg))
 (define-type Completer (String Streaming Options -> String))
 (define-type ChatTemplate (History Options -> String))
-(define-type InteractiveHook (-> Interactive Options (Values Interactive Options)))
 (define-type StreamingType (U 'content 'think))
 (define-type Streaming (-> String StreamingType Void))
 
