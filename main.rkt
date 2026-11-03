@@ -34,8 +34,7 @@
 
 (define (call/break [thunk : (-> Void)])
   (call-with-continuation-prompt
-   (λ ()  
-     (thunk))
+   thunk
    break-prompt-tag
    (λ ([cc : (-> Nothing)])
      (newline)
