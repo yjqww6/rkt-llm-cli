@@ -6,7 +6,7 @@
          racket/port
          json)
 (provide define-tool tool->string tools->string (struct-out Tool)
-         shell_exec current-shell-confirm current-shell-output)
+         shell_exec default-shell-confirm current-shell-confirm current-shell-output)
 
 (begin-for-syntax
   (define-syntax-class Param #:datum-literals (:)
@@ -67,19 +67,22 @@
     (system cmd)
     (get-output-string o)))
 
-(define current-shell-confirm (make-parameter #t))
+(define (default-shell-confirm cmd)
+  (call/color
+   'red
+   (λ () (printf "~a\tConfirm[y/n]:" cmd))
+   #:newline? #f)
+  (string=? "y" (read-line)))
+
+(define current-shell-confirm (make-parameter default-shell-confirm))
 
 (define-tool (shell_exec [cmd : string #:desc "command line to be executed"])
   #:desc (format "execute shell command. system type: ~a" (system-type 'os))
   (cond
     [(current-shell-confirm)
-     (call/color
-      'red
-      (λ () (printf "~a\tConfirm[y/n]:" cmd))
-      #:newline? #f)
-     (if (string=? "y" (read-line))
+     (if ((current-shell-confirm) cmd)
          (system/string cmd)
-         #f)]
+         "Error: rejected by user")]
     [else
      (sleep 2)
      (system/string cmd)]))
