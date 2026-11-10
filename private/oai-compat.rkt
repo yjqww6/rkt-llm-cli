@@ -37,7 +37,10 @@
    (current-reasoning-delta) (false->nullable reasoning-content)))
 
 (define (build-body-common [options : Options])
-  (hash-build
+  (hash-add
+   (if (is-null? (Options-extra-options options))
+       ((inst hasheq Symbol JSExpr))
+       (Options-extra-options options))
    'temperature (Options-temperature options)
    'top_k (Options-top-k options)
    'top_p (Options-top-p options)

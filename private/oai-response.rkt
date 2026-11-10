@@ -81,7 +81,10 @@
     (match his
       [(list msg) (build-message msg)]
       [_ (build-messages his)]))
-  (hash-build
+  (hash-add
+   (if (is-null? (Options-extra-options options))
+       ((inst hasheq Symbol JSExpr))
+       (Options-extra-options options))
    'model (Options-model options)
    'input input
    'instructions (false->nullable system)

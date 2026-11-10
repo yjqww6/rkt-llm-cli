@@ -167,6 +167,7 @@
   [grammar : (Nullable String)]
   [enable-thinking : (Nullable Boolean)]
   [reasoning-effort : (Nullable String)]
+  [extra-options : (Nullable (Immutable-HashTable Symbol JSExpr))]
   ;; sampling
   [temperature : (Nullable Flonum)]
   [top-k : (Nullable Positive-Integer)]
