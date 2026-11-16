@@ -180,6 +180,8 @@
 (define-parameter current-verbose #f : Boolean)
 (define-parameter current-network-trace void : (-> (U 'send 'recv) (U Bytes String) Void))
 
+(define-parameter last-interrupted-msg #f : (Option Msg))
+
 (define break-prompt-tag : (Prompt-Tagof Void (-> (-> Nothing) Void))
   (make-continuation-prompt-tag))
 

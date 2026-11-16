@@ -139,14 +139,23 @@
          [else compacted])]
       [else compacted])))
 
-(define (compact-context)
+(: compact-context (->* () (Nonnegative-Integer) Void))
+(define (compact-context [retry 2])
   (call/color 'red (λ () (displayln "COMPACTING...")))
+  (define old-history (current-history))
   (chat (User #f (make-user (file->string COMPACT))))
-  (match-define (struct* Msg ([role "assistant"] [content (? string? compacted)])) (last (current-history)))
-  (define new-history (make-user (list "```\n" compacted "\n...\nContinue")))
-  (hash-set! compacted-history new-history (current-history))
-  (clear)
-  (current-history (list new-history)))
+  (match-define (struct* Msg ([role "assistant"] [content (? string? compacted)] [tool-calls tcs])) (last (current-history)))
+  (cond
+    [(or (not (null? tcs)) (< (string-length compacted) 64))
+     (unless (> retry 0)
+       (error 'compact-context "failed"))
+     (current-history old-history)
+     (compact-context (sub1 retry))]
+    [else
+     (define new-history (make-user (list "```\n" compacted "\n...\nContinue")))
+     (hash-set! compacted-history new-history (current-history))
+     (clear)
+     (current-history (list new-history))]))
 #;
 (module+ main
   (use-endpoint)

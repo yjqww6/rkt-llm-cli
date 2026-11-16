@@ -176,18 +176,21 @@
         (λ () #f))]
       [_ (void)])
     (void))
+  (define (build-msg)
+    (Msg "assistant" (get-output-string whole-content)
+         (for/list ([tc (in-hash-values streaming-tools)]
+                    #:when tc)
+           tc)
+         #f
+         (let ([s (get-output-string reasoning-content)])
+           (if (non-empty-string? s) s #f))))
   (call/interrupt
    (λ ()
      (on-event-stream port handle))
    (λ ()
-     (hash-clear! streaming-tools)))
-  (Msg "assistant" (get-output-string whole-content)
-       (for/list ([tc (in-hash-values streaming-tools)]
-                  #:when tc)
-         tc)
-       #f
-       (let ([s (get-output-string reasoning-content)])
-         (if (non-empty-string? s) s #f))))
+     (hash-clear! streaming-tools)
+     (last-interrupted-msg (build-msg))))
+  (build-msg))
 
 (define (chat [msgs : History] [streaming : Streaming] [opt : Options])
   (define data (build-chat-body msgs opt))
