@@ -2,7 +2,8 @@
 (require racket/gui/base
          racket/gui/easy
          racket/gui/easy/operator
-         rkt-llm-cli)
+         rkt-llm-cli
+         framework)
 
 (provide edit-history input-history)
 
@@ -38,13 +39,6 @@
                            (make-object image-snip% (open-input-bytes (Image-data c)))
                            (send ed last-position))]))]))
 
-(define (make-keymap)
-  (define k (new keymap%))
-  (add-editor-keymap-functions k)
-  (add-text-keymap-functions k)
-  ((current-text-keymap-initializer) k)
-  k)
-
 (define (edit-history history)
   (define/obs @history
     (for/vector #:length (length history) ([msg (in-list history)])
@@ -61,7 +55,7 @@
                      @idx-entry
                      (λ (e) (and e (Msg-role (car e))))))
 
-  (define k (make-keymap))
+  (define k (keymap:get-global))
 
   (define (get-text! content h key [lock? #f])
     (hash-ref! h key
